@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Generator</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-gradient-to-b from-gray-900 via-blue-900 to-orange-400 flex flex-col items-center justify-center">
+  <header class="w-full flex justify-between items-center p-6">
+    <div class="flex items-center space-x-2">
+      <span class="text-3xl text-blue-400">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-8 w-8">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 17h10M9 3v18m6-18v18" />
+        </svg>
+      </span>
+      <span class="text-white text-2xl font-bold">Codex</span>
+    </div>
+    <button class="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold" id="openSidebarBtn">My Codex</button>
+  </header>
+  <!-- Sidebar Overlay -->
+  <div id="sidebarOverlay" onclick="closeSidebarOnOverlay(event)" class="fixed inset-0 z-40 bg-black bg-opacity-40 hidden"></div>
+  <!-- Sidebar -->
+  <div id="sidebar" class="fixed top-0 right-0 h-full w-80 bg-gray-900 bg-opacity-95 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col rounded-l-2xl overflow-hidden">
+    <!-- Close Button -->
+    <button id="closeSidebar" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl focus:outline-none" title="Close sidebar">&times;</button>
+    <!-- Profile Section -->
+    <div class="flex items-center space-x-4 p-6 pb-4 border-b border-gray-800">
+      <div class="flex items-center justify-center h-12 w-12 rounded-full bg-blue-600 text-white text-xl font-bold">C</div>
+      <div>
+        <div class="text-white font-semibold leading-tight">Codex</div>
+        <div class="text-xs text-gray-400">mehul.gupta.56614@gmail.com</div>
+      </div>
+    </div>
+    <!-- Credits Used Card -->
+    <div class="bg-gray-800 rounded-xl mx-4 mt-4 p-4 flex flex-col shadow border border-gray-700">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-gray-200 font-medium text-sm">Credits Used</span>
+        <a href="manage.html" target="_blank" class="text-blue-400 text-xs font-semibold hover:underline">Manage</a>
+      </div>
+      <div class="w-full h-2 bg-gray-700 rounded-full mb-1 overflow-hidden">
+        <div id="creditsBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+      </div>
+      <div class="flex justify-between text-xs text-gray-400">
+        <span id="creditsText">0/5</span>
+        <span class="flex items-center gap-1"><svg class="w-3 h-3 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> <span id="creditsDetail">0 of your daily credits used</span></span>
+      </div>
+    </div>
+    <!-- Divider -->
+    <div class="border-t border-gray-800 my-4 mx-4"></div>
+    <!-- Main Actions -->
+    <div class="flex flex-col gap-1 px-4 pb-4">
+      <button id="sidebarSettings" onclick="openSettingsModal()" class="flex items-center gap-3 text-gray-200 hover:bg-gray-800 rounded-lg px-3 py-2 transition text-sm">
+        <!-- Cog Icon -->
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-1.14 1.603-1.14 1.902 0a1.724 1.724 0 002.573 1.01c.969-.56 2.065.436 1.507 1.407a1.724 1.724 0 001.01 2.573c1.14.3 1.14 1.603 0 1.902a1.724 1.724 0 00-1.01 2.573c.56.969-.436 2.065-1.407 1.507a1.724 1.724 0 00-2.573 1.01c-.3 1.14-1.603 1.14-1.902 0a1.724 1.724 0 00-2.573-1.01c-.969.56-2.065-.436-1.507-1.407a1.724 1.724 0 00-1.01-2.573c-1.14-.3-1.14-1.603 0-1.902a1.724 1.724 0 001.01-2.573c-.56-.969.436-2.065 1.407-1.507a1.724 1.724 0 002.573-1.01z"/><circle cx="12" cy="12" r="3"/></svg>
+        Settings
+      </button>
+      <button id="sidebarAppearance" onclick="toggleTheme()" class="flex items-center gap-3 text-gray-200 hover:bg-gray-800 rounded-lg px-3 py-2 transition text-sm">
+        <!-- Sun Icon (for light theme) -->
+        <svg id="themeIcon" class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2m0 16v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M6.05 17.95l-1.414 1.414M17.95 17.95l-1.414-1.414M6.05 6.05L4.636 4.636"/></svg>
+        Appearance
+      </button>
+      <button id="sidebarHelp" onclick="openHelpCenter()" class="flex items-center gap-3 text-gray-200 hover:bg-gray-800 rounded-lg px-3 py-2 transition text-sm">
+        <!-- Question Mark Circle Icon -->
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9a3 3 0 115.544 0c0 1.657-1.343 3-3 3v2m0 4h.01"/></svg>
+        Help Center
+      </button>
+      <button id="sidebarInvite" onclick="openInviteModal()" class="flex items-center gap-3 text-gray-200 hover:bg-gray-800 rounded-lg px-3 py-2 transition text-sm">
+        <!-- User Plus Icon -->
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 14v6M8 14v6M12 14v6M12 10a4 4 0 100-8 4 4 0 000 8zM20 21v-2a4 4 0 00-3-3.87"/></svg>
+        Invite
+      </button>
+      <button id="sidebarSignout" onclick="signOut()" class="flex items-center gap-3 text-red-400 hover:bg-gray-800 rounded-lg px-3 py-2 transition text-sm">
+        <!-- Logout Icon -->
+        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7M7 8v8"/></svg>
+        Sign out
+      </button>
+    </div>
+  </div>
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center hidden">
+    <div class="bg-gray-900 text-white rounded-xl p-8 w-full max-w-md shadow-2xl relative">
+      <button id="closeSettings" onclick="closeSettingsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+      <h2 class="text-2xl font-bold mb-4">Settings</h2>
+      <p class="text-gray-300">Settings content goes here.</p>
+    </div>
+  </div>
+  <!-- Invite Modal -->
+  <div id="inviteModal" class="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center hidden">
+    <div class="bg-gray-900 text-white rounded-xl p-8 w-full max-w-md shadow-2xl relative">
+      <button id="closeInvite" onclick="closeInviteModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+      <h2 class="text-2xl font-bold mb-4">Invite</h2>
+      <p class="text-gray-300">Invite functionality coming soon.</p>
+    </div>
+  </div>
+  <main class="flex flex-col items-center flex-1 w-full">
+    <h1 class="text-5xl md:text-6xl font-bold text-white mt-12 mb-4 text-center">Build Anything <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-lime-400">Codex</span></h1>
+    <p class="text-xl text-blue-200 mb-10 text-center">Idea to code in seconds, with your personal code generator</p>
+    <div class="bg-gray-900 bg-opacity-60 rounded-xl shadow-2xl p-8 w-full max-w-2xl flex flex-col items-center space-y-6 backdrop-blur-md border border-white border-opacity-30 transition-transform duration-300 hover:scale-105">
+      <label for="prompt" class="text-gray-300 self-start text-lg font-medium">Describe what you want to generate</label>
+      <textarea id="prompt" rows="3" class="w-full p-4 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-gray-700 transition duration-200 resize-none placeholder-gray-400" placeholder="e.g. Build a coffee shop website" title="Describe your code request here"></textarea>
+      <div class="w-full flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
+        <div class="flex-1">
+          <label for="tech" class="text-gray-400 text-sm">Technology</label>
+          <select id="tech" class="w-full mt-1 p-2 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-400" title="Select the target technology">
+            <option>React</option>
+            <option>Next</option>
+            <option>Vue</option>
+            <option selected>Static</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label for="model" class="text-gray-400 text-sm">AI Model</label>
+          <select id="model" class="w-full mt-1 p-2 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-gray-700 transition duration-200 cursor-pointer" title="Select the AI model to use">
+            <optgroup label="Gemini">
+              <option value="gemini-2.5-pro-preview-03-25">Gemini 2.5 Pro Preview</option>
+              <option value="gemini-2.0-flash" selected>Gemini 2.0 Flash</option>
+            </optgroup>
+            <optgroup label="Anthropic">
+              <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+              <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+            </optgroup>
+            <optgroup label="OpenAI">
+              <option value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (2025-04-14)</option>
+              <option value="chatgpt-4o-latest">ChatGPT-4o Latest</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button id="enhanceBtn" title="Enhance prompt" class="ml-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white p-3 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-md transition duration-200" aria-label="Enhance prompt">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </button>
+        </div>
+      </div>
+      <button id="generateBtn" class="self-end bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400" title="Generate code">Generate</button>
+    </div>
+    <!-- Generated code output -->
+    <div id="generatedCode" class="w-full max-w-2xl mt-8 bg-gray-900 bg-opacity-80 rounded-xl p-6 text-green-200 font-mono text-sm whitespace-pre overflow-x-auto hidden"></div>
+  </main>
+  <script src="./scripts.js"></script>
+</body>
+</html> 
