@@ -14,14 +14,26 @@ function parseProjectFiles(response, provider = 'gemini') {
       });
     }
   } else if (provider === 'claude') {
-    // Claude: expects File: ...\n<content>\nFile: ...
-    const fileRegex = /File: (.*?)\n([\s\S]*?)(?=File:|$)/g;
+    // Claude: supports both plain and code block formats
+    // 1. Try code block format first
+    const codeBlockRegex = /File: (.*?)\n```([a-zA-Z0-9]*)\n([\s\S]*?)```/g;
     let match;
-    while ((match = fileRegex.exec(response)) !== null) {
+    while ((match = codeBlockRegex.exec(response)) !== null) {
       files.push({
         path: match[1].trim(),
-        content: match[2].trim()
+        content: match[3].trim()
       });
+    }
+    // 2. Fallback to plain text format
+    const plainRegex = /File: (.*?)\n([\s\S]*?)(?=File:|$)/g;
+    while ((match = plainRegex.exec(response)) !== null) {
+      // Only add if not already present (avoid duplicates)
+      if (!files.some(f => f.path === match[1].trim())) {
+        files.push({
+          path: match[1].trim(),
+          content: match[2].trim()
+        });
+      }
     }
   } else if (provider === 'openai') {
     // OpenAI: expects markdown code blocks with file headers
