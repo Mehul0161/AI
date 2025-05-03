@@ -176,9 +176,16 @@
               <text x="4" y="26" font-size="28" font-family="monospace" font-weight="bold" fill="url(#hash-gradient2)">#</text>
             </svg>
           </span>
-          <span class="text-lg font-semibold text-white tracking-wide">soft-focus-tasks</span>
+          <span class="text-lg font-semibold text-white tracking-wide project-name">Project</span>
         </div>
         <div class="flex items-center gap-2">
+          <!-- Toggle button for code/preview -->
+          <button id="togglePreviewBtn" class="flex items-center gap-2 px-3 py-1 rounded bg-[#23272e] text-gray-300 hover:bg-blue-600 hover:text-white transition font-semibold focus:outline-none" onclick="togglePreview()">
+            <svg id="togglePreviewIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 014-4h4m0 0V7m0 4h-4" />
+            </svg>
+            <span id="togglePreviewText">Preview</span>
+          </button>
           <div class="ml-4 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">M</div>
         </div>
       </nav>
@@ -187,12 +194,18 @@
         <!-- Chat Section -->
         <aside class="w-full max-w-xs bg-[#18181b] border-r border-[#23272e] flex flex-col h-full relative">
           <div class="flex-1 overflow-y-auto p-4 space-y-3" id="chatHistory">
+            <!-- Empty state -->
+            <div id="chatEmptyState" class="flex flex-col items-center justify-center h-full text-gray-500 text-sm select-none">
+              <svg width="48" height="48" fill="none" viewBox="0 0 24 24" class="mb-2"><rect x="2" y="4" width="20" height="16" rx="4" fill="#23272e"/><path d="M6 8h12M6 12h8" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>
+              <span>Start a conversation with your AI assistant!</span>
+            </div>
             <!-- Chat messages will appear here as bubbles -->
           </div>
-          <form id="chatForm" class="p-3 border-t border-[#23272e] flex gap-2 bg-[#18181b]">
-            <input id="chatInput" type="text" placeholder="Ask AI..." class="flex-1 rounded bg-[#23272e] text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" autocomplete="off" />
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold transition">Send</button>
-          </form>
+          <div id="chatTyping" class="px-4 pb-2 text-xs text-blue-400 hidden">AI is typing<span class="animate-pulse">...</span></div>
+          <div id="chatForm" class="p-3 border-t border-[#23272e] flex gap-2 bg-[#18181b]">
+            <input id="chatInput" type="text" placeholder="Ask AI..." class="flex-1 rounded-full bg-[#202124] text-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition placeholder-gray-400" autocomplete="off" />
+            <button type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-full font-semibold transition shadow" onclick="sendChatMessage()">Send</button>
+          </div>
         </aside>
         <!-- Editor Section -->
         <section class="flex-1 flex flex-row h-full bg-[#000]">
@@ -211,7 +224,11 @@
               <div class="ml-4 text-gray-400 text-sm font-medium tracking-wide">Files</div>
             </div>
             <div id="editorContent" class="flex-1 p-0 font-mono text-sm overflow-hidden bg-[#111] rounded-b-lg shadow-inner border border-[#23272e] relative transition-all duration-300">
-              <div id="monacoContainer" style="width:100%;height:100%;"></div>
+              <div id="monacoContainer" style="width:100%;height:100%;background:#111;"></div>
+              <div id="previewContainer" class="w-full h-full hidden bg-[#18181b] flex items-center justify-center">
+                <iframe id="previewFrame" class="w-full h-full rounded-lg border-0" style="background:#18181b;"></iframe>
+                <div id="previewUnavailable" class="absolute inset-0 flex items-center justify-center text-gray-400 text-lg hidden">Preview not available for this file type.</div>
+              </div>
             </div>
           </div>
         </section>

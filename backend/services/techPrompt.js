@@ -66,7 +66,7 @@ Include the complete, valid code for that file.
 dont add any instructions to the code, just the code and the filepath.
 dont use any svg icons, use free icons from FontAwesome or other free icon libraries.
 use this @fortawesome/react-fontawesome": "^0.2.0" in the package.json file.
-Use free images from Unsplash, Pexels, or Pixabay when external images are required.
+Use free images from Pexels, or Pixabay when external images are required.
 Ensure images are responsive and optimized.
 Include all necessary imports and dependencies.
 script should be like this in the package.json file.

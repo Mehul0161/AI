@@ -120,6 +120,7 @@ const mainHeader = document.getElementById('mainHeader');
 let monacoEditor = null;
 let monacoLoaded = false;
 let selectedFilePath = null;
+let projectName = 'Project'; // Default
 
 function guessLanguage(filename) {
   const ext = filename.split('.').pop();
@@ -147,6 +148,76 @@ function guessLanguage(filename) {
   }
 }
 
+// --- Hierarchical File Explorer ---
+function buildFileTreeWithRoot(files, rootName) {
+  const root = {};
+  root[rootName] = {};
+  files.forEach((file, idx) => {
+    const parts = file.path.split('/');
+    let node = root[rootName];
+    parts.forEach((part, i) => {
+      if (!node[part]) {
+        node[part] = (i === parts.length - 1)
+          ? { __fileIdx: idx, __isFile: true }
+          : { __isFile: false };
+      }
+      node = node[part];
+    });
+  });
+  return root;
+}
+
+function renderFileTree(node, parentPath = '', depth = 0) {
+  const container = document.createElement('div');
+  Object.entries(node).forEach(([name, value]) => {
+    if (name.startsWith('__')) return; // skip meta
+    const fullPath = parentPath ? parentPath + '/' + name : name;
+    if (value.__isFile) {
+      // File node
+      const ext = name.split('.').pop();
+      let icon = '<svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v16H4z"/></svg>';
+      if (ext === 'js') icon = '<svg class="w-4 h-4 mr-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="6" y="18" font-size="12" fill="#000">JS</text></svg>';
+      if (ext === 'jsx') icon = '<svg class="w-4 h-4 mr-2 text-blue-400" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="3" y="18" font-size="12" fill="#fff">JSX</text></svg>';
+      if (ext === 'ts') icon = '<svg class="w-4 h-4 mr-2 text-blue-300" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="6" y="18" font-size="12" fill="#fff">TS</text></svg>';
+      if (ext === 'tsx') icon = '<svg class="w-4 h-4 mr-2 text-blue-300" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="3" y="18" font-size="12" fill="#fff">TSX</text></svg>';
+      if (ext === 'json') icon = '<svg class="w-4 h-4 mr-2 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#22c55e">{}</text></svg>';
+      if (ext === 'html') icon = '<svg class="w-4 h-4 mr-2 text-pink-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#ec4899">&lt;/&gt;</text></svg>';
+      if (ext === 'css') icon = '<svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#3b82f6">CSS</text></svg>';
+      if (ext === 'md') icon = '<svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#a3a3a3">MD</text></svg>';
+      if (ext === 'cjs') icon = '<svg class="w-4 h-4 mr-2 text-orange-400" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="3" y="18" font-size="12" fill="#fff">CJS</text></svg>';
+      if (ext === 'py') icon = '<svg class="w-4 h-4 mr-2 text-yellow-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#fde68a">PY</text></svg>';
+      // Add more icons as needed
+      const fileDiv = document.createElement('div');
+      fileDiv.className = `flex items-center px-3 py-2 rounded cursor-pointer text-sm mb-1 transition-colors font-medium select-none ${fullPath === selectedFilePath ? 'bg-blue-700 text-white' : 'text-gray-200 hover:bg-[#23272e]'}`;
+      fileDiv.style.marginLeft = `${depth * 16}px`;
+      fileDiv.innerHTML = `${icon}<span class="truncate">${name}</span>`;
+      fileDiv.onclick = () => {
+        openFileInMonaco(value.__fileIdx);
+      };
+      container.appendChild(fileDiv);
+    } else {
+      // Folder node
+      const folderDiv = document.createElement('div');
+      folderDiv.className = 'flex items-center px-3 py-2 rounded cursor-pointer text-sm mb-1 font-semibold text-gray-300 hover:bg-[#23272e] select-none';
+      folderDiv.style.marginLeft = `${depth * 16}px`;
+      folderDiv.innerHTML = `<svg class="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h2l2-2h10l2 2h2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span>${name}</span>`;
+      // Expand/collapse logic
+      let expanded = true;
+      const childrenContainer = renderFileTree(value, fullPath, depth + 1);
+      childrenContainer.style.display = expanded ? '' : 'none';
+      folderDiv.onclick = (e) => {
+        e.stopPropagation();
+        expanded = !expanded;
+        childrenContainer.style.display = expanded ? '' : 'none';
+        folderDiv.querySelector('svg').classList.toggle('rotate-90', expanded);
+      };
+      container.appendChild(folderDiv);
+      container.appendChild(childrenContainer);
+    }
+  });
+  return container;
+}
+
 function renderFileExplorer() {
   const explorer = document.getElementById('fileExplorer');
   if (!explorer) return;
@@ -155,24 +226,8 @@ function renderFileExplorer() {
     explorer.innerHTML = '<div class="text-gray-500 text-sm px-2 py-1">No files</div>';
     return;
   }
-  generatedFiles.forEach((file, idx) => {
-    const isSelected = file.path === selectedFilePath;
-    const ext = file.path.split('.').pop();
-    let icon = '<svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v16H4z"/></svg>';
-    if (ext === 'js') icon = '<svg class="w-4 h-4 mr-2 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><rect width="24" height="24" rx="4"/><text x="6" y="18" font-size="12" fill="#000">JS</text></svg>';
-    if (ext === 'json') icon = '<svg class="w-4 h-4 mr-2 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#22c55e">{}</text></svg>';
-    if (ext === 'html') icon = '<svg class="w-4 h-4 mr-2 text-pink-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#ec4899">&lt;/&gt;</text></svg>';
-    if (ext === 'css') icon = '<svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#3b82f6">CSS</text></svg>';
-    if (ext === 'py') icon = '<svg class="w-4 h-4 mr-2 text-yellow-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><text x="7" y="17" font-size="10" fill="#fde68a">PY</text></svg>';
-    // Add more icons as needed
-    const fileDiv = document.createElement('div');
-    fileDiv.className = `flex items-center px-3 py-2 rounded cursor-pointer text-sm mb-1 transition-colors font-medium select-none ${isSelected ? 'bg-blue-700 text-white' : 'text-gray-200 hover:bg-[#23272e]'}`;
-    fileDiv.innerHTML = `${icon}<span class="truncate">${file.path}</span>`;
-    fileDiv.onclick = () => {
-      openFileInMonaco(idx);
-    };
-    explorer.appendChild(fileDiv);
-  });
+  const tree = buildFileTreeWithRoot(generatedFiles, projectName);
+  explorer.appendChild(renderFileTree(tree));
 }
 
 function openFileInMonaco(idx) {
@@ -295,12 +350,16 @@ if (generateBtn) generateBtn.addEventListener('click', async () => {
     
     if (data.files && Array.isArray(data.files)) {
       generatedFiles = data.files;
+      projectName = data.projectName || 'Project';
       selectedFilePath = generatedFiles[0]?.path || null;
       renderFileExplorer();
       switchToEditorView();
       setTimeout(() => {
         initMonacoEditor();
       }, 100);
+      // Update project name in navbar
+      const projectNameEls = document.querySelectorAll('.project-name');
+      projectNameEls.forEach(el => el.textContent = projectName);
     } else if (data.error) {
       alert('Error: ' + data.error);
     } else {
@@ -318,4 +377,106 @@ if (generateBtn) generateBtn.addEventListener('click', async () => {
 // Add back to generator button handler
 if (backToGeneratorBtn) {
   backToGeneratorBtn.addEventListener('click', switchToGeneratorView);
+}
+
+// Toggle code/preview logic
+const togglePreviewBtn = document.getElementById('togglePreviewBtn');
+const monacoContainer = document.getElementById('monacoContainer');
+const previewContainer = document.getElementById('previewContainer');
+const togglePreviewIcon = document.getElementById('togglePreviewIcon');
+const togglePreviewText = document.getElementById('togglePreviewText');
+
+let isPreviewMode = false;
+window.togglePreview = function() {
+  isPreviewMode = !isPreviewMode;
+  if (isPreviewMode) {
+    if (monacoContainer) monacoContainer.style.display = 'none';
+    if (previewContainer) previewContainer.classList.remove('hidden');
+    if (togglePreviewIcon) {
+      togglePreviewIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0c0 5-7 9-7 9s-7-4-7-9a7 7 0 0114 0z" />';
+    }
+    if (togglePreviewText) togglePreviewText.textContent = 'Code';
+  } else {
+    if (monacoContainer) monacoContainer.style.display = '';
+    if (previewContainer) previewContainer.classList.add('hidden');
+    if (togglePreviewIcon) {
+      togglePreviewIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 014-4h4m0 0V7m0 4h-4" />';
+    }
+    if (togglePreviewText) togglePreviewText.textContent = 'Preview';
+  }
+}
+
+// Chat functionality
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatHistory = document.getElementById('chatHistory');
+const chatEmptyState = document.getElementById('chatEmptyState');
+const chatTyping = document.getElementById('chatTyping');
+
+let chatMessages = [];
+
+function renderChatMessages() {
+  if (!chatHistory) return;
+  chatHistory.innerHTML = '';
+  if (chatMessages.length === 0) {
+    if (chatEmptyState) chatEmptyState.style.display = '';
+    return;
+  }
+  if (chatEmptyState) chatEmptyState.style.display = 'none';
+  chatMessages.forEach(msg => {
+    const bubble = document.createElement('div');
+    if (msg.role === 'user') {
+      bubble.className = 'flex justify-end mb-2';
+      bubble.innerHTML = `
+        <div class="flex items-end gap-2">
+          <div class="rounded-full w-7 h-7 bg-gradient-to-tr from-blue-500 to-blue-400 flex items-center justify-center text-white font-bold text-sm shadow">U</div>
+          <div class="max-w-[70%] bg-blue-600 text-white px-4 py-2 rounded-2xl rounded-br-sm shadow text-sm">${msg.content}</div>
+        </div>
+      `;
+    } else {
+      bubble.className = 'flex justify-start mb-2';
+      bubble.innerHTML = `
+        <div class="flex items-end gap-2">
+          <div class="rounded-full w-7 h-7 bg-[#23272e] flex items-center justify-center text-blue-400 font-bold text-sm shadow">AI</div>
+          <div class="max-w-[70%] bg-[#23272e] text-gray-200 px-4 py-2 rounded-2xl rounded-bl-sm shadow text-sm">${msg.content}</div>
+        </div>
+      `;
+    }
+    chatHistory.appendChild(bubble);
+  });
+  // Auto-scroll to bottom
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+// Chat functionality
+window.sendChatMessage = async function() {
+  const value = chatInput.value.trim();
+  if (!value) return;
+  chatMessages.push({ role: 'user', content: value });
+  renderChatMessages();
+  chatInput.value = '';
+  if (chatTyping) chatTyping.classList.remove('hidden');
+  try {
+    const response = await fetch('http://localhost:4000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: value,
+        history: chatMessages.filter(m => m.role === 'user' || m.role === 'ai')
+      })
+    });
+    const data = await response.json();
+    if (chatTyping) chatTyping.classList.add('hidden');
+    if (data.reply) {
+      chatMessages.push({ role: 'ai', content: data.reply });
+      renderChatMessages();
+    } else {
+      chatMessages.push({ role: 'ai', content: 'AI did not reply.' });
+      renderChatMessages();
+    }
+  } catch (err) {
+    if (chatTyping) chatTyping.classList.add('hidden');
+    chatMessages.push({ role: 'ai', content: 'Network or server error.' });
+    renderChatMessages();
+  }
 } 

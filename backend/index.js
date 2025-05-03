@@ -20,6 +20,10 @@ app.use('/generate', generateRouter);
 const enhanceRouter = require('./routes/enhance');
 app.use('/enhance', enhanceRouter);
 
+// AI chat endpoint
+const chatRouter = require('./routes/chat');
+app.use('/chat', chatRouter);
+
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 }); 
