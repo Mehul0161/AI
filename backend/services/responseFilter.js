@@ -1,63 +1,55 @@
 // responseFilter.js
 
-function parseProjectFiles(response) {
-  // Split the response into lines
-  const lines = response.split("\n");
-  const files = [];
-  let currentFile = null;
-  let currentContent = [];
-  let inCodeBlock = false;
+function parseProjectFiles(response, provider = 'gemini') {
+  let files = [];
 
-  for (const line of lines) {
-    // Check for code block markers
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      continue;
+  if (provider === 'gemini') {
+    // Gemini: expects markdown code blocks with file headers
+    const fileRegex = /File: (.*?)\n```(?:[a-zA-Z0-9]*)\n([\s\S]*?)```/g;
+    let match;
+    while ((match = fileRegex.exec(response)) !== null) {
+      files.push({
+        path: match[1].trim(),
+        content: match[2].trim()
+      });
     }
-
-    // Check for file path markers
-    if (line.startsWith("File: ") || line.startsWith("Path: ")) {
-      // If we have a previous file, save it
-      if (currentFile) {
-        files.push({
-          ...currentFile,
-          content: currentContent.join("\n").trim(),
-        });
-        currentContent = [];
-      }
-
-      // Start new file - clean the path by removing backticks and extra spaces
-      const path = line.replace(/^(File: |Path: )/, "")
-                      .replace(/`/g, '')  // Remove backticks
-                      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-                      .trim();
-      currentFile = {
-        path: path,
-        content: "",
-      };
-    } else if (currentFile) {
-      // Add content to current file, but skip empty lines at the start/end
-      if (currentContent.length === 0 && !line.trim()) {
-        continue;
-      }
-      currentContent.push(line);
+  } else if (provider === 'claude') {
+    // Claude: expects File: ...\n<content>\nFile: ...
+    const fileRegex = /File: (.*?)\n([\s\S]*?)(?=File:|$)/g;
+    let match;
+    while ((match = fileRegex.exec(response)) !== null) {
+      files.push({
+        path: match[1].trim(),
+        content: match[2].trim()
+      });
+    }
+  } else if (provider === 'openai') {
+    // OpenAI: expects markdown code blocks with file headers
+    const fileRegex = /File: (.*?)\n```[a-zA-Z0-9]*\n([\s\S]*?)```/g;
+    let match;
+    while ((match = fileRegex.exec(response)) !== null) {
+      files.push({
+        path: match[1].trim(),
+        content: match[2].trim()
+      });
+    }
+  } else {
+    // Fallback: try to parse as Gemini/OpenAI style
+    const fileRegex = /File: (.*?)\n```[a-zA-Z0-9]*\n([\s\S]*?)```/g;
+    let match;
+    while ((match = fileRegex.exec(response)) !== null) {
+      files.push({
+        path: match[1].trim(),
+        content: match[2].trim()
+      });
     }
   }
 
-  // Add the last file if exists
-  if (currentFile) {
-    files.push({
-      ...currentFile,
-      content: currentContent.join("\n").trim(),
-    });
+  if (files.length === 0) {
+    throw new Error('No valid files were parsed from the AI response');
   }
 
-  // Clean up file paths and content
-  return files.map(file => ({
-    ...file,
-    path: file.path.replace(/`/g, '').trim(),
-    content: file.content.replace(/^```.*\n?/, '').replace(/\n?```$/, '').trim()
-  }));
+  return files;
 }
 
 function filterAIResponse(data, technology) {

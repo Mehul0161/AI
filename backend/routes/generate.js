@@ -4,21 +4,26 @@ const { generateCode } = require('../services/generateCode');
 const { parseProjectFiles } = require('../services/responseFilter');
 
 function extractCodeTextFromResponse(response, provider) {
+  let data;
+  try {
+    data = typeof response === 'string' ? JSON.parse(response) : response;
+  } catch (e) {
+    data = response;
+  }
   if (provider === 'gemini') {
-    try {
-      const data = typeof response === 'string' ? JSON.parse(response) : response;
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    } catch (e) { return ''; }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   } else if (provider === 'claude') {
-    try {
-      const data = typeof response === 'string' ? JSON.parse(response) : response;
-      return data.content || '';
-    } catch (e) { return ''; }
+    // Claude: response.content[0].text
+    if (Array.isArray(data.content) && data.content[0]?.text) {
+      return data.content.map(c => c.text).join('\n');
+    }
+    return data.content?.text || '';
   } else if (provider === 'openai') {
-    try {
-      const data = typeof response === 'string' ? JSON.parse(response) : response;
-      return data.choices?.[0]?.message?.content || '';
-    } catch (e) { return ''; }
+    // OpenAI: response.output[0].content[0].text
+    if (Array.isArray(data.output) && Array.isArray(data.output[0]?.content) && data.output[0].content[0]?.text) {
+      return data.output.map(o => o.content.map(c => c.text).join('\n')).join('\n');
+    }
+    return data.choices?.[0]?.message?.content || '';
   }
   return '';
 }
@@ -41,8 +46,18 @@ router.post('/', async (req, res) => {
     const codeResponse = await generateCode({ prompt, technology, model });
     console.log('Raw AI response:', codeResponse);
     const provider = getProviderFromModel(model.toLowerCase());
-    const codeText = extractCodeTextFromResponse(codeResponse, provider);
-    const files = parseProjectFiles(codeText).map(file => ({
+    let codeText = extractCodeTextFromResponse(codeResponse, provider);
+    if (provider === 'claude' && Array.isArray(codeText)) {
+      codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
+    }
+    console.log('Provider:', provider);
+    console.log('Extracted codeText (first 500 chars):', typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
+    if (typeof codeResponse === 'string') {
+      console.log('Raw AI response (first 500 chars):', codeResponse.slice(0, 500));
+    } else {
+      console.log('Raw AI response (object):', JSON.stringify(codeResponse).slice(0, 500));
+    }
+    const files = parseProjectFiles(codeText, provider).map(file => ({
       ...file,
       provider,
       model,
