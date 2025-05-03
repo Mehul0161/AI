@@ -240,6 +240,10 @@ function openFileInMonaco(idx) {
     monacoEditor.setValue(file.content);
     monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
   }
+  const currentFileText = document.getElementById('currentFileText');
+  if (currentFileText) {
+    currentFileText.textContent = file.path.split('/').pop();
+  }
 }
 
 function initMonacoEditor() {
@@ -385,8 +389,10 @@ const monacoContainer = document.getElementById('monacoContainer');
 const previewContainer = document.getElementById('previewContainer');
 const togglePreviewIcon = document.getElementById('togglePreviewIcon');
 const togglePreviewText = document.getElementById('togglePreviewText');
+const openPreviewInNewTabBtn = document.getElementById('openPreviewInNewTabBtn');
 
 let isPreviewMode = false;
+let currentPreviewBlobUrl = null;
 
 // --- Static Project Preview ---
 function getMainHtmlFile() {
@@ -429,7 +435,16 @@ window.showPreview = function() {
   const mainHtml = getMainHtmlFile();
   if (mainHtml && previewFrame) {
     const html = assembleStaticPreviewHtml();
-    previewFrame.srcdoc = html;
+    // Clean up previous Blob URL
+    if (currentPreviewBlobUrl) {
+      URL.revokeObjectURL(currentPreviewBlobUrl);
+      currentPreviewBlobUrl = null;
+    }
+    // Create Blob and set iframe src
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    currentPreviewBlobUrl = url;
+    previewFrame.src = url;
     previewFrame.style.display = '';
     if (previewUnavailable) previewUnavailable.style.display = 'none';
   } else {
@@ -448,6 +463,9 @@ window.togglePreview = function() {
       togglePreviewIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0c0 5-7 9-7 9s-7-4-7-9a7 7 0 0114 0z" />';
     }
     if (togglePreviewText) togglePreviewText.textContent = 'Code';
+    if (openPreviewInNewTabBtn) openPreviewInNewTabBtn.classList.remove('hidden');
+    const currentFileText = document.getElementById('currentFileText');
+    if (currentFileText) currentFileText.style.display = 'none';
     showPreview();
   } else {
     if (monacoContainer) monacoContainer.style.display = '';
@@ -456,6 +474,9 @@ window.togglePreview = function() {
       togglePreviewIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 014-4h4m0 0V7m0 4h-4" />';
     }
     if (togglePreviewText) togglePreviewText.textContent = 'Preview';
+    if (openPreviewInNewTabBtn) openPreviewInNewTabBtn.classList.add('hidden');
+    const currentFileText = document.getElementById('currentFileText');
+    if (currentFileText) currentFileText.style.display = '';
   }
 }
 
@@ -541,4 +562,13 @@ if (chatInput) {
       sendChatMessage();
     }
   };
+}
+
+window.openPreviewInNewTab = function() {
+  const html = assembleStaticPreviewHtml();
+  if (!html) return;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
 } 
