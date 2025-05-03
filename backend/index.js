@@ -24,6 +24,10 @@ app.use('/enhance', enhanceRouter);
 const chatRouter = require('./routes/chat');
 app.use('/chat', chatRouter);
 
+// Auth and other root endpoints
+const rootRouter = require('./routes/index');
+app.use('/', rootRouter);
+
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 }); 

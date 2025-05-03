@@ -68,6 +68,42 @@ window.signOut = function() {
   alert('Sign out functionality coming soon!');
 };
 
+// Sign In Modal logic
+window.openSignInModal = function() {
+  document.getElementById('signInModal').classList.remove('hidden');
+};
+window.closeSignInModal = function() {
+  document.getElementById('signInModal').classList.add('hidden');
+};
+const signInForm = document.getElementById('signInForm');
+if (signInForm) {
+  signInForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const username = document.getElementById('signInUsername').value.trim();
+    const email = document.getElementById('signInEmail').value.trim();
+    const password = document.getElementById('signInPassword').value;
+    try {
+      const res = await fetch('http://localhost:4000/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('Signed in successfully!');
+        window.closeSignInModal();
+        localStorage.setItem('codexUserEmail', email);
+        localStorage.setItem('codexUserName', username);
+        updateSidebarUser(username, email);
+      } else {
+        alert(data.error || 'Sign in failed.');
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    }
+  });
+}
+
 // Enhance and Generate button functionality
 const enhanceBtn = document.getElementById('enhanceBtn');
 const spinner = enhanceBtn ? enhanceBtn.querySelector('.enhance-spinner') : null;
@@ -585,4 +621,31 @@ window.openPreviewInNewTab = function() {
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
+}
+
+function updateSidebarUser(username, email) {
+  const profileEmail = document.getElementById('sidebarUserEmail');
+  const profileName = document.getElementById('sidebarUserName');
+  const profileInitial = document.getElementById('sidebarUserInitial');
+  if (profileEmail) profileEmail.textContent = email;
+  if (profileName) profileName.textContent = username;
+  if (profileInitial && username) profileInitial.textContent = username[0].toUpperCase();
+  // Also update editor nav button
+  const editorInitial = document.getElementById('editorUserInitial');
+  if (editorInitial && username) editorInitial.textContent = username[0].toUpperCase();
+}
+
+// On page load, set sidebar user from localStorage if present
+const storedEmail = localStorage.getItem('codexUserEmail');
+const storedUsername = localStorage.getItem('codexUserName');
+if (storedEmail && storedUsername) {
+  updateSidebarUser(storedUsername, storedEmail);
+}
+
+// Make editor nav button open sidebar
+const editorSidebarBtn = document.getElementById('editorSidebarBtn');
+if (editorSidebarBtn && typeof openSidebarBtn !== 'undefined') {
+  editorSidebarBtn.onclick = function() {
+    openSidebarBtn.click();
+  };
 } 
