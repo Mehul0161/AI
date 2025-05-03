@@ -213,17 +213,23 @@
       <div class="flex flex-1 min-h-0 overflow-hidden">
         <!-- Chat Section -->
         <aside class="w-full max-w-xs bg-[#18181b] border-r border-[#23272e] flex flex-col h-full relative">
+          <div class="p-3 border-b border-[#23272e] bg-[#18181b] flex items-center justify-between">
+            <h3 class="text-white font-medium" id="chatTitle">Chat</h3>
+            <div class="flex items-center gap-2">
+              <button id="clearChatBtn" class="text-xs text-gray-400 hover:text-white" title="Clear chat history" onclick="clearChatHistory()">Clear</button>
+            </div>
+          </div>
           <div class="flex-1 overflow-y-auto p-4 space-y-3" id="chatHistory">
             <!-- Empty state -->
             <div id="chatEmptyState" class="flex flex-col items-center justify-center h-full text-gray-500 text-sm select-none">
               <svg width="48" height="48" fill="none" viewBox="0 0 24 24" class="mb-2"><rect x="2" y="4" width="20" height="16" rx="4" fill="#23272e"/><path d="M6 8h12M6 12h8" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>
-              <span>Start a conversation with your AI assistant!</span>
+              <span id="chatEmptyMessage">Ask questions about your code!</span>
             </div>
             <!-- Chat messages will appear here as bubbles -->
           </div>
           <div id="chatTyping" class="px-4 pb-2 text-xs text-blue-400 hidden">AI is typing<span class="animate-pulse">...</span></div>
           <div id="chatForm" class="p-3 border-t border-[#23272e] flex gap-2 bg-[#18181b]">
-            <input id="chatInput" type="text" placeholder="Ask AI..." class="flex-1 rounded-full bg-[#202124] text-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition placeholder-gray-400" autocomplete="off" />
+            <input id="chatInput" type="text" placeholder="Ask about your code..." class="flex-1 rounded-full bg-[#202124] text-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition placeholder-gray-400" autocomplete="off" />
             <button type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-full font-semibold transition shadow" onclick="sendChatMessage()">Send</button>
           </div>
         </aside>

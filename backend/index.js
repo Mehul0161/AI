@@ -24,6 +24,10 @@ app.use('/enhance', enhanceRouter);
 const chatRouter = require('./routes/chat');
 app.use('/chat', chatRouter);
 
+// Code assistant endpoint
+const codeAssistantRouter = require('./routes/codeAssistant');
+app.use('/code-assistant', codeAssistantRouter);
+
 // Auth and other root endpoints
 const rootRouter = require('./routes/index');
 app.use('/', rootRouter);
