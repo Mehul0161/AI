@@ -387,6 +387,58 @@ const togglePreviewIcon = document.getElementById('togglePreviewIcon');
 const togglePreviewText = document.getElementById('togglePreviewText');
 
 let isPreviewMode = false;
+
+// --- Static Project Preview ---
+function getMainHtmlFile() {
+  // Try common locations for index.html
+  const candidates = [
+    'index.html',
+    'public/index.html',
+    'src/index.html'
+  ];
+  for (const path of candidates) {
+    const file = generatedFiles.find(f => f.path === path);
+    if (file) return file;
+  }
+  // Fallback: first .html file
+  return generatedFiles.find(f => f.path.endsWith('.html'));
+}
+
+function assembleStaticPreviewHtml() {
+  const mainHtml = getMainHtmlFile();
+  if (!mainHtml) return null;
+  let html = mainHtml.content;
+  // Inject CSS files
+  const cssFiles = generatedFiles.filter(f => f.path.endsWith('.css'));
+  if (cssFiles.length > 0) {
+    const styles = cssFiles.map(f => `<style>\n${f.content}\n</style>`).join('\n');
+    html = html.replace('</head>', styles + '\n</head>');
+  }
+  // Inject JS files
+  const jsFiles = generatedFiles.filter(f => f.path.endsWith('.js'));
+  if (jsFiles.length > 0) {
+    const scripts = jsFiles.map(f => `<script>\n${f.content}\n</script>`).join('\n');
+    html = html.replace('</body>', scripts + '\n</body>');
+  }
+  return html;
+}
+
+window.showPreview = function() {
+  const previewFrame = document.getElementById('previewFrame');
+  const previewUnavailable = document.getElementById('previewUnavailable');
+  const mainHtml = getMainHtmlFile();
+  if (mainHtml && previewFrame) {
+    const html = assembleStaticPreviewHtml();
+    previewFrame.srcdoc = html;
+    previewFrame.style.display = '';
+    if (previewUnavailable) previewUnavailable.style.display = 'none';
+  } else {
+    if (previewFrame) previewFrame.style.display = 'none';
+    if (previewUnavailable) previewUnavailable.style.display = '';
+  }
+}
+
+// Update togglePreview to call showPreview when switching to preview mode
 window.togglePreview = function() {
   isPreviewMode = !isPreviewMode;
   if (isPreviewMode) {
@@ -396,6 +448,7 @@ window.togglePreview = function() {
       togglePreviewIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0c0 5-7 9-7 9s-7-4-7-9a7 7 0 0114 0z" />';
     }
     if (togglePreviewText) togglePreviewText.textContent = 'Code';
+    showPreview();
   } else {
     if (monacoContainer) monacoContainer.style.display = '';
     if (previewContainer) previewContainer.classList.add('hidden');
@@ -479,4 +532,13 @@ window.sendChatMessage = async function() {
     chatMessages.push({ role: 'ai', content: 'Network or server error.' });
     renderChatMessages();
   }
+}
+
+if (chatInput) {
+  chatInput.onkeydown = function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  };
 } 
