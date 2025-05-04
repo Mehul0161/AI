@@ -45,7 +45,7 @@ The output should be:
 
 example structure:
 /project-name
-├── public/              --> (optional, for static assets like images, favicons)
+├── public/              --> (optional, for static assets like images)
 ├── index.html           --> Vite uses this file for mounting the React app
 ├── src/
 │   ├── components/      --> Reusable React components
@@ -153,7 +153,7 @@ Include essential files:
 Example folder structure:
 
 /vue-project
-├── public/               # Static assets (favicons, etc.)
+├── public/               # Static assets 
 ├── src/                  # Main source directory
 │   ├── components/       # Reusable Vue components
 │   │   ├── Header.vue

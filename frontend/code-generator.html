@@ -123,7 +123,7 @@
     <!-- Generator View -->
     <div id="generatorView" class="absolute inset-0 flex flex-col items-center justify-center w-full h-full bg-transparent z-10">
       <div class="w-full max-w-4xl mx-auto px-4">
-        <h1 class="text-5xl md:text-6xl font-bold text-white mb-4 text-center">Build Anything <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-lime-400">Codex</span></h1>
+        <h1 class="text-5xl md:text-6xl font-bold text-white mb-4 text-center">Build Anything With <span class="codex-title">Codex</span></h1>
     <p class="text-xl text-blue-200 mb-10 text-center">Idea to code in seconds, with your personal code generator</p>
         <div class="bg-gray-900 bg-opacity-60 rounded-xl shadow-2xl p-8 w-full flex flex-col items-center space-y-6 backdrop-blur-md border border-white border-opacity-30 transition-transform duration-300 hover:scale-105">
           <label for="prompt" class="text-gray-300 self-start text-lg font-medium">Describe what you want to generate</label>
@@ -289,6 +289,27 @@
       0% { stroke-dashoffset: 90; }
       50% { stroke-dashoffset: 30; }
       100% { stroke-dashoffset: 90; }
+    }
+    .codex-title {
+      background: linear-gradient(45deg, #fbbf24, #34d399, #60a5fa, #a78bfa);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: gradient-shift 3s ease infinite;
+      display: inline-block;
+      transform-origin: center;
+      animation: gradient-shift 3s ease infinite, float 3s ease-in-out infinite;
+    }
+    @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+      100% { transform: translateY(0px); }
     }
   </style>
   <script src="./scripts.js"></script>

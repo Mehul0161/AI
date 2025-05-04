@@ -799,126 +799,128 @@ window.sendChatMessage = async function() {
 function extractCodeChanges(reply) {
   console.log('Extracting code changes from:', reply);
   const changes = [];
-  // Look for code blocks with file paths and optional line numbers
-  const fileRegex = /File: (.*?)(?:\nLines: (\d+-\d+))?\n```(?:[a-zA-Z0-9]*)\n([\s\S]*?)```/g;
+  // Look for code blocks with file paths
+  const fileRegex = /File: (.*?)\n```(?:[a-zA-Z0-9]*)\n([\s\S]*?)```/g;
   let match;
   while ((match = fileRegex.exec(reply)) !== null) {
     console.log('Found code change:', match);
     changes.push({
       filePath: match[1].trim(),
-      lineRange: match[2] ? match[2].trim() : null,
-      newContent: match[3].trim()
+      newContent: match[2].trim()
     });
   }
   console.log('Extracted changes:', changes);
   return changes;
 }
 
-// Add function to apply AI-suggested changes
-function applyCodeChanges(filePath, newContent) {
-  console.log('Applying changes to:', filePath);
-  console.log('New content:', newContent);
+// Function to verify file compatibility
+function verifyFileCompatibility(filePath, newContent, allFiles) {
+  console.log('Verifying compatibility for:', filePath);
   
-  const fileIndex = generatedFiles.findIndex(f => f.path === filePath);
-  if (fileIndex !== -1) {
-    console.log('Found file at index:', fileIndex);
-    console.log('Current content:', generatedFiles[fileIndex].content);
-    
-    // Instead of replacing the entire content, we'll try to merge the changes
-    const currentContent = generatedFiles[fileIndex].content;
-    const mergedContent = mergeCodeChanges(currentContent, newContent);
-    
-    console.log('Merged content:', mergedContent);
-    
-    // Update the file content
-    generatedFiles[fileIndex].content = mergedContent;
-    
-    // If this is the currently selected file, update the editor
-    if (selectedFilePath === filePath && monacoEditor) {
-      console.log('Updating Monaco editor');
-      monacoEditor.setValue(mergedContent);
-    }
-    
-    // Update preview if in preview mode
-    if (isPreviewMode) {
-      console.log('Updating preview');
-      showPreview();
-    }
-    return true;
+  // Get the current file
+  const currentFile = allFiles.find(f => f.path === filePath);
+  if (!currentFile) return false;
+  
+  // Check if all imports are preserved
+  const currentImports = extractImports(currentFile.content);
+  const newImports = extractImports(newContent);
+  const missingImports = currentImports.filter(imp => !newImports.includes(imp));
+  
+  if (missingImports.length > 0) {
+    console.error('Missing imports:', missingImports);
+    return false;
   }
-  console.log('File not found:', filePath);
-  return false;
+  
+  // Check if all exports are preserved
+  const currentExports = extractExports(currentFile.content);
+  const newExports = extractExports(newContent);
+  const missingExports = currentExports.filter(exp => !newExports.includes(exp));
+  
+  if (missingExports.length > 0) {
+    console.error('Missing exports:', missingExports);
+    return false;
+  }
+  
+  // Check if all function signatures are preserved
+  const currentFunctions = extractFunctionSignatures(currentFile.content);
+  const newFunctions = extractFunctionSignatures(newContent);
+  const missingFunctions = currentFunctions.filter(fn => !newFunctions.includes(fn));
+  
+  if (missingFunctions.length > 0) {
+    console.error('Missing function signatures:', missingFunctions);
+    return false;
+  }
+  
+  return true;
 }
 
-// Add function to merge code changes intelligently
-function mergeCodeChanges(currentContent, newContent) {
-  console.log('Merging code changes');
-  console.log('Current content length:', currentContent.length);
-  console.log('New content length:', newContent.length);
-  
-  // If the new content is empty or just whitespace, keep the current content
-  if (!newContent.trim()) {
-    console.log('New content is empty, keeping current content');
-    return currentContent;
+// Helper function to extract imports
+function extractImports(content) {
+  const imports = [];
+  const importRegex = /(?:import|require)\s*\(?['"]([^'"]+)['"]\)?/g;
+  let match;
+  while ((match = importRegex.exec(content)) !== null) {
+    imports.push(match[1]);
   }
+  return imports;
+}
 
-  // If the new content is a complete file replacement (contains imports, exports, etc.)
-  if (newContent.includes('import') || newContent.includes('export') || 
-      newContent.includes('<!DOCTYPE') || newContent.includes('<html>')) {
-    console.log('Detected complete file replacement');
-    return newContent;
+// Helper function to extract exports
+function extractExports(content) {
+  const exports = [];
+  const exportRegex = /export\s+(?:default\s+)?(?:const|let|var|function|class)\s+(\w+)/g;
+  let match;
+  while ((match = exportRegex.exec(content)) !== null) {
+    exports.push(match[1]);
   }
+  return exports;
+}
 
-  // Try to find the section that changed
-  const currentLines = currentContent.split('\n');
-  const newLines = newContent.split('\n');
+// Helper function to extract function signatures
+function extractFunctionSignatures(content) {
+  const functions = [];
+  const functionRegex = /(?:function|const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\([^)]*\)/g;
+  let match;
+  while ((match = functionRegex.exec(content)) !== null) {
+    functions.push(match[1]);
+  }
+  return functions;
+}
+
+// Function to apply code changes
+function applyCodeChanges(filePath, newContent) {
+  console.log('Applying changes to file:', filePath);
+  console.log('New content:', newContent);
   
-  console.log('Current lines:', currentLines.length);
-  console.log('New lines:', newLines.length);
-  
-  // If the new content is shorter than the current content, it's likely a partial change
-  if (newLines.length < currentLines.length) {
-    console.log('Detected partial change');
-    // Find the first and last changed lines
-    let startIndex = -1;
-    let endIndex = -1;
-    
-    for (let i = 0; i < currentLines.length; i++) {
-      if (currentLines[i] !== newLines[0]) continue;
-      
-      // Found potential start of changes
-      startIndex = i;
-      let matches = true;
-      
-      // Check if the next few lines match
-      for (let j = 0; j < newLines.length; j++) {
-        if (currentLines[i + j] !== newLines[j]) {
-          matches = false;
-          break;
-        }
-      }
-      
-      if (matches) {
-        endIndex = i + newLines.length;
-        break;
-      }
-    }
-    
-    console.log('Found matching section:', { startIndex, endIndex });
-    
-    // If we found a matching section, replace just that section
-    if (startIndex !== -1 && endIndex !== -1) {
-      const before = currentLines.slice(0, startIndex).join('\n');
-      const after = currentLines.slice(endIndex).join('\n');
-      const result = before + '\n' + newContent + '\n' + after;
-      console.log('Successfully merged changes');
-      return result;
-    }
+  // Find the file in generatedFiles
+  const fileIndex = generatedFiles.findIndex(f => f.path === filePath);
+  if (fileIndex === -1) {
+    console.error('File not found:', filePath);
+    return false;
   }
   
-  console.log('Could not find matching section, appending changes');
-  // If we couldn't find a matching section, append the changes with a comment
-  return currentContent + '\n\n/* AI-suggested changes: */\n' + newContent;
+  // Verify compatibility before applying changes
+  if (!verifyFileCompatibility(filePath, newContent, generatedFiles)) {
+    console.error('Compatibility check failed for:', filePath);
+    return false;
+  }
+  
+  // Update the file content
+  generatedFiles[fileIndex].content = newContent;
+  
+  // Update editor if this file is currently open
+  if (selectedFilePath === filePath && monacoEditor) {
+    console.log('Updating Monaco editor');
+    monacoEditor.setValue(newContent);
+  }
+  
+  // Update preview if this is an HTML file
+  if (filePath.endsWith('.html') && previewFrame) {
+    console.log('Updating preview');
+    showPreview();
+  }
+  
+  return true;
 }
 
 if (chatInput) {
