@@ -2,6 +2,34 @@ const express = require('express');
 const router = express.Router();
 const { generateCode } = require('../services/generateCode');
 const { parseProjectFiles } = require('../services/responseFilter');
+const { createWorkspace } = require('../services/daytonaCreation');
+
+// Track active requests to prevent duplicates
+const activeRequests = new Map();
+
+// Function to extract relevant workspace info
+function extractWorkspaceInfo(workspace) {
+  if (!workspace) return null;
+  
+  const nodeDomain = workspace.instance?.info?.nodeDomain;
+  const workspaceId = workspace.id;
+  
+  return {
+    id: workspaceId,
+    name: workspace.name,
+    state: workspace.instance?.state,
+    nodeDomain: nodeDomain,
+    region: workspace.instance?.info?.region,
+    resources: {
+      cpu: workspace.instance?.cpu,
+      memory: workspace.instance?.memory,
+      disk: workspace.instance?.disk
+    },
+    created: workspace.instance?.info?.created,
+    updatedAt: workspace.instance?.info?.updatedAt,
+    previewUrl: nodeDomain ? `https://3000-${workspaceId}.${nodeDomain}` : null
+  };
+}
 
 function extractCodeTextFromResponse(response, provider) {
   let data;
@@ -28,6 +56,7 @@ function extractCodeTextFromResponse(response, provider) {
   return '';
 }
 
+
 function getProviderFromModel(model) {
   if (model.includes('gemini')) return 'gemini';
   if (model.includes('claude')) return 'claude';
@@ -37,40 +66,78 @@ function getProviderFromModel(model) {
 
 // POST /generate
 router.post('/', async (req, res) => {
+  const requestId = Date.now();
+  const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
+  
+  // Check if this exact request is already being processed
+  if (activeRequests.has(requestKey)) {
+    console.log(`[${requestId}] Duplicate request detected, returning existing response`);
+    return res.status(429).json({ error: 'Request already in progress' });
+  }
+  
   const { prompt, technology, model } = req.body;
-  console.log('Received /generate request:', req.body);
+  console.log(`[${requestId}] Received /generate request:`, req.body);
+  
   if (!prompt || !technology || !model) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+
+  // Mark this request as active
+  activeRequests.set(requestKey, requestId);
+
+  let workspaceInfo = null;
+  if (technology !== 'static') {
+    console.log(`[${requestId}] Creating workspace`);
+    try {
+      const workspace = await createWorkspace(technology);
+      if (workspace) {
+        workspaceInfo = extractWorkspaceInfo(workspace);
+        const previewUrl = `https://3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
+        console.log(`[${requestId}] Workspace created:`, workspaceInfo);
+        console.log(`[${requestId}] Preview URL:`, previewUrl);
+      } else {
+        console.log(`[${requestId}] Workspace creation failed, continuing with code generation only`);
+      }
+    } catch (error) {
+      console.error(`[${requestId}] Error creating workspace:`, error);
+      // Continue with code generation even if workspace creation fails
+    }
+  }
+
   try {
     const codeResponse = await generateCode({ prompt, technology, model });
-    console.log('Raw AI response:', codeResponse);
+    console.log(`[${requestId}] Raw AI response created`);
     const provider = getProviderFromModel(model.toLowerCase());
     let codeText = extractCodeTextFromResponse(codeResponse, provider);
     if (provider === 'claude' && Array.isArray(codeText)) {
       codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
     }
-    console.log('Provider:', provider);
-    console.log('Extracted codeText (first 500 chars):', typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
-    if (typeof codeResponse === 'string') {
-      console.log('Raw AI response (first 500 chars):', codeResponse.slice(0, 500));
-    } else {
-      console.log('Raw AI response (object):', JSON.stringify(codeResponse).slice(0, 500));
-    }
+    console.log(`[${requestId}] Provider:`, provider);
+    console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
+    
     const files = parseProjectFiles(codeText, provider).map(file => ({
       ...file,
       provider,
       model,
       technology
     }));
+    
     if (!Array.isArray(files) || files.length === 0) {
       throw new Error('No valid files were parsed from the AI response');
     }
-    res.json({ files });
+    
+    res.json({ 
+      files,
+      workspace: workspaceInfo // Now sending the extracted workspace info
+    });
   } catch (err) {
-    console.error('Error in /generate:', err);
+    console.error(`[${requestId}] Error in /generate:`, err);
     res.status(500).json({ error: err.message || 'Failed to generate code' });
+  } finally {
+    // Clean up the request tracking
+    activeRequests.delete(requestKey);
   }
 });
+
 
 module.exports = router; 

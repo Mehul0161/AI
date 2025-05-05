@@ -145,7 +145,11 @@ const generateBtn = document.getElementById('generateBtn');
 const generatedCodeDiv = document.getElementById('generatedCode');
 
 // Update the generate code function to track the current model
+let isGenerating = false;
+
 generateBtn?.addEventListener('click', async function() {
+  if (isGenerating) return;
+  
   const prompt = document.getElementById('prompt')?.value;
   const tech = document.getElementById('tech')?.value;
   const model = document.getElementById('model')?.value;
@@ -155,6 +159,7 @@ generateBtn?.addEventListener('click', async function() {
     return;
   }
   
+  isGenerating = true;
   // Save the current model for code assistant to use
   currentModel = model;
   
@@ -177,8 +182,6 @@ generateBtn?.addEventListener('click', async function() {
     
     if (data.error) {
       alert('Error: ' + data.error);
-      this.disabled = false;
-      this.innerHTML = 'Generate';
       return;
     }
     
@@ -194,9 +197,8 @@ generateBtn?.addEventListener('click', async function() {
   } catch (error) {
     console.error('Error generating code:', error);
     alert('Error: ' + (error.message || 'Failed to generate code'));
-    this.disabled = false;
-    this.innerHTML = 'Generate';
   } finally {
+    isGenerating = false;
     this.disabled = false;
     this.innerHTML = 'Generate';
   }
@@ -498,62 +500,6 @@ window.switchToGeneratorView = function() {
   
   // Set currentMode
   currentMode = 'generator';
-}
-
-// Update the generate code function to track the current model
-document.getElementById('generateBtn')?.addEventListener('click', async function() {
-  const prompt = document.getElementById('prompt')?.value;
-  const tech = document.getElementById('tech')?.value;
-  const model = document.getElementById('model')?.value;
-  
-  if (!prompt || prompt.trim() === '') {
-    alert('Please enter a prompt');
-    return;
-  }
-  
-  // Save the current model for code assistant to use
-  currentModel = model;
-  
-  this.disabled = true;
-  this.innerHTML = 'Generating <span class="animate-spin ml-2 inline-block">↻</span>';
-  
-  // Clear previously generated files
-  generatedFiles = [];
-  
-  try {
-    const response = await fetch('http://localhost:4000/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ prompt, technology: tech, model })
-    });
-    
-    const data = await response.json();
-    
-    if (data.error) {
-      alert('Error: ' + data.error);
-      this.disabled = false;
-      this.innerHTML = 'Generate';
-      return;
-    }
-    
-    generatedFiles = data.files;
-    switchToEditorView();
-  } catch (error) {
-    console.error('Error generating code:', error);
-    alert('Error: ' + (error.message || 'Failed to generate code'));
-    this.disabled = false;
-    this.innerHTML = 'Generate';
-  } finally {
-    this.disabled = false;
-    this.innerHTML = 'Generate';
-  }
-});
-
-// Add back to generator button handler
-if (backToGeneratorBtn) {
-  backToGeneratorBtn.addEventListener('click', switchToGeneratorView);
 }
 
 // Toggle code/preview logic

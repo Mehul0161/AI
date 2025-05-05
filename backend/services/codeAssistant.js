@@ -62,8 +62,7 @@ ${file.content}
   
   // Compose the final prompt
   const finalPrompt = `${CODE_ASSISTANT_SYSTEM_PROMPT}\n\nHere are the files from the project with their dependencies:\n\n${fileContext}\n\nUser request: ${message}`;
-  
-  console.log('Sending request to AI with prompt:', finalPrompt);
+
   
   // Call the AI with the prepared prompt
   const response = await aiProvider({ 
