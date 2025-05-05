@@ -86,7 +86,7 @@ router.post('/', async (req, res) => {
   activeRequests.set(requestKey, requestId);
 
   let workspaceInfo = null;
-  if (technology !== 'static') {
+  if (technology !== 'Static') {
     console.log(`[${requestId}] Creating workspace`);
     try {
       const workspace = await createWorkspace(technology);

@@ -177,6 +177,8 @@ Example folder structure:
 `,
   static: `You are an expert in static web development. Generate a complete static website project based on the user's prompt.
 
+  IMPORTANT:complete project must be generated under the 8000 tokens limit. even if the user asks for more.
+
 IMPORTANT: You must format your response exactly as shown below:
 
 File: index.html

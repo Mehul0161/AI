@@ -147,6 +147,9 @@ const generatedCodeDiv = document.getElementById('generatedCode');
 // Update the generate code function to track the current model
 let isGenerating = false;
 
+// Add this variable at the top of the file with other global variables
+let currentWorkspacePreviewUrl = null;
+
 generateBtn?.addEventListener('click', async function() {
   if (isGenerating) return;
   
@@ -168,6 +171,7 @@ generateBtn?.addEventListener('click', async function() {
   
   // Clear previously generated files
   generatedFiles = [];
+  currentWorkspacePreviewUrl = null;
   
   try {
     const response = await fetch('http://localhost:4000/generate', {
@@ -188,6 +192,11 @@ generateBtn?.addEventListener('click', async function() {
     generatedFiles = data.files;
     projectName = data.projectName || 'Project';
     selectedFilePath = generatedFiles[0]?.path || null;
+    
+    // Store the preview URL for non-static projects
+    if (tech !== 'static' && data.workspace?.previewUrl) {
+      currentWorkspacePreviewUrl = data.workspace.previewUrl;
+    }
     
     // Update project name in navbar
     const projectNameEls = document.querySelectorAll('.project-name');
@@ -225,6 +234,25 @@ let isPreviewMode = false;
 let currentModel = 'gemini-2.0-flash';  // Default model
 let currentMode = 'generator';
 let currentPreviewBlobUrl = null;
+
+// Add these utility functions at the top of the file
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const retryWithBackoff = async (fn, maxRetries = 5, initialDelay = 1000) => {
+  let retries = 0;
+  let delay = initialDelay;
+
+  while (retries < maxRetries) {
+    try {
+      return await fn();
+    } catch (error) {
+      retries++;
+      if (retries === maxRetries) throw error;
+      await sleep(delay);
+      delay *= 2; // Exponential backoff
+    }
+  }
+};
 
 function guessLanguage(filename) {
   const ext = filename.split('.').pop();
@@ -543,29 +571,181 @@ function assembleStaticPreviewHtml() {
   return html;
 }
 
-window.showPreview = function() {
+window.showPreview = async function() {
   const previewFrame = document.getElementById('previewFrame');
   const previewUnavailable = document.getElementById('previewUnavailable');
-  const mainHtml = getMainHtmlFile();
-  if (mainHtml && previewFrame) {
-    const html = assembleStaticPreviewHtml();
-    // Clean up previous Blob URL
-    if (currentPreviewBlobUrl) {
-      URL.revokeObjectURL(currentPreviewBlobUrl);
-      currentPreviewBlobUrl = null;
+  const tech = document.getElementById('tech')?.value;
+
+  if (tech === 'static') {
+    // Handle static project preview
+    const mainHtml = getMainHtmlFile();
+    if (mainHtml && previewFrame) {
+      try {
+        const html = assembleStaticPreviewHtml();
+        if (!html) {
+          throw new Error('Failed to assemble HTML');
+        }
+
+        // Clean up previous Blob URL
+        if (currentPreviewBlobUrl) {
+          URL.revokeObjectURL(currentPreviewBlobUrl);
+          currentPreviewBlobUrl = null;
+        }
+
+        // Create Blob and set iframe src
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        currentPreviewBlobUrl = url;
+
+        // Show loading state
+        if (previewUnavailable) {
+          previewUnavailable.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+              <p class="text-gray-400">Loading preview...</p>
+            </div>
+          `;
+          previewUnavailable.style.display = '';
+        }
+
+        // Set up error handling for the iframe
+        previewFrame.onerror = () => {
+          if (previewUnavailable) {
+            previewUnavailable.innerHTML = `
+              <div class="flex flex-col items-center justify-center h-full">
+                <p class="text-red-400 mb-2">Failed to load preview</p>
+                <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                  Retry Preview
+                </button>
+              </div>
+            `;
+            previewUnavailable.style.display = '';
+          }
+          if (previewFrame) previewFrame.style.display = 'none';
+        };
+
+        // Set up load handler
+        previewFrame.onload = () => {
+          if (previewUnavailable) previewUnavailable.style.display = 'none';
+          if (previewFrame) previewFrame.style.display = '';
+        };
+
+        // Set the source
+        previewFrame.src = url;
+      } catch (error) {
+        console.error('Error creating preview:', error);
+        if (previewFrame) previewFrame.style.display = 'none';
+        if (previewUnavailable) {
+          previewUnavailable.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full">
+              <p class="text-red-400 mb-2">Failed to create preview</p>
+              <p class="text-gray-400 text-sm">${error.message}</p>
+              <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                Retry Preview
+              </button>
+            </div>
+          `;
+          previewUnavailable.style.display = '';
+        }
+      }
+    } else {
+      if (previewFrame) previewFrame.style.display = 'none';
+      if (previewUnavailable) {
+        previewUnavailable.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full">
+            <p class="text-gray-400">No HTML file found</p>
+            <p class="text-gray-400 text-sm">Make sure your project includes an HTML file</p>
+          </div>
+        `;
+        previewUnavailable.style.display = '';
+      }
     }
-    // Create Blob and set iframe src
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    currentPreviewBlobUrl = url;
-    previewFrame.src = url;
-    previewFrame.style.display = '';
-    if (previewUnavailable) previewUnavailable.style.display = 'none';
   } else {
-    if (previewFrame) previewFrame.style.display = 'none';
-    if (previewUnavailable) previewUnavailable.style.display = '';
+    // Handle non-static project preview using workspace URL
+    if (previewFrame && currentWorkspacePreviewUrl) {
+      // Show loading state
+      if (previewUnavailable) {
+        previewUnavailable.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+            <p class="text-gray-400">Loading workspace preview...</p>
+            <p class="text-gray-400 text-sm mt-2">This may take a few moments</p>
+          </div>
+        `;
+        previewUnavailable.style.display = '';
+      }
+
+      try {
+        // Try to load the preview with retry mechanism
+        await retryWithBackoff(async () => {
+          return new Promise((resolve, reject) => {
+            const checkWorkspace = async () => {
+              try {
+                const response = await fetch(currentWorkspacePreviewUrl, { 
+                  method: 'HEAD',
+                  mode: 'no-cors'
+                });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            };
+            checkWorkspace();
+          });
+        });
+
+        // If we get here, the workspace is ready
+        previewFrame.src = currentWorkspacePreviewUrl;
+        previewFrame.style.display = '';
+        if (previewUnavailable) previewUnavailable.style.display = 'none';
+
+        // Set up error handling for the iframe
+        previewFrame.onerror = () => {
+          if (previewUnavailable) {
+            previewUnavailable.innerHTML = `
+              <div class="flex flex-col items-center justify-center h-full">
+                <p class="text-red-400 mb-2">Failed to load workspace preview</p>
+                <p class="text-gray-400 text-sm">Please try refreshing the preview</p>
+                <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                  Retry Preview
+                </button>
+              </div>
+            `;
+            previewUnavailable.style.display = '';
+          }
+          if (previewFrame) previewFrame.style.display = 'none';
+        };
+
+      } catch (error) {
+        // Show error state after all retries failed
+        if (previewUnavailable) {
+          previewUnavailable.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full">
+              <p class="text-red-400 mb-2">Workspace is not ready</p>
+              <p class="text-gray-400 text-sm">The workspace is still starting up or may have failed to start</p>
+              <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                Retry Preview
+              </button>
+            </div>
+          `;
+          previewUnavailable.style.display = '';
+        }
+        if (previewFrame) previewFrame.style.display = 'none';
+      }
+    } else {
+      if (previewFrame) previewFrame.style.display = 'none';
+      if (previewUnavailable) {
+        previewUnavailable.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full">
+            <p class="text-gray-400">Workspace preview not available</p>
+            <p class="text-gray-400 text-sm">The workspace URL is not set</p>
+          </div>
+        `;
+        previewUnavailable.style.display = '';
+      }
+    }
   }
-}
+};
 
 // Update togglePreview to call showPreview when switching to preview mode
 window.togglePreview = function() {
