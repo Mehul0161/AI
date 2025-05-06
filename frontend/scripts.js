@@ -146,12 +146,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Custom Alert Function
-window.showAlert = function(message, type = 'info', title = 'Alert') {
+window.showAlert = function(message, type = 'info', title = 'Alert', confirmType = false) {
   const alertModal = document.getElementById('customAlert');
   const alertIcon = document.getElementById('alertIcon');
   const alertTitle = document.getElementById('alertTitle');
   const alertMessage = document.getElementById('alertMessage');
   const alertConfirmBtn = document.getElementById('alertConfirmBtn');
+  let alertCancelBtn = document.getElementById('alertCancelBtn');
 
   // Set icon based on type
   let iconHtml = '';
@@ -178,17 +179,45 @@ window.showAlert = function(message, type = 'info', title = 'Alert') {
   alertIcon.className = `w-8 h-8 rounded-full flex items-center justify-center ${iconBg}`;
   alertTitle.textContent = title;
   alertMessage.textContent = message;
-  
+
+  // Handle confirm/cancel buttons
+  if (confirmType) {
+    if (!alertCancelBtn) {
+      alertCancelBtn = document.createElement('button');
+      alertCancelBtn.id = 'alertCancelBtn';
+      alertCancelBtn.className = 'px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition mr-2';
+      alertCancelBtn.textContent = 'Cancel';
+      alertConfirmBtn.parentNode.insertBefore(alertCancelBtn, alertConfirmBtn);
+    } else {
+      alertCancelBtn.style.display = '';
+    }
+    alertConfirmBtn.textContent = (type === 'warning' || type === 'error') ? 'Delete' : 'OK';
+    alertConfirmBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition';
+  } else {
+    if (alertCancelBtn) alertCancelBtn.style.display = 'none';
+    alertConfirmBtn.textContent = 'OK';
+    alertConfirmBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition';
+  }
+
   alertModal.classList.remove('hidden');
-  
+
   return new Promise((resolve) => {
     const handleConfirm = () => {
       alertModal.classList.add('hidden');
       alertConfirmBtn.removeEventListener('click', handleConfirm);
-      resolve();
+      if (alertCancelBtn) alertCancelBtn.removeEventListener('click', handleCancel);
+      resolve(true);
     };
-    
+    const handleCancel = () => {
+      alertModal.classList.add('hidden');
+      alertConfirmBtn.removeEventListener('click', handleConfirm);
+      if (alertCancelBtn) alertCancelBtn.removeEventListener('click', handleCancel);
+      resolve(false);
+    };
     alertConfirmBtn.addEventListener('click', handleConfirm);
+    if (confirmType && alertCancelBtn) {
+      alertCancelBtn.addEventListener('click', handleCancel);
+    }
   });
 };
 
@@ -1395,9 +1424,10 @@ async function loadUserProjects() {
       const gridContainer = document.createElement('div');
       gridContainer.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
       
-      data.projects.forEach(project => {
+      data.projects.forEach((project, idx) => {
         const projectCard = document.createElement('div');
-        projectCard.className = 'bg-[#18181b] border border-[#23272e] rounded-xl p-4 mb-3 flex items-center justify-between shadow-sm hover:bg-[#23272e] transition-all duration-200';
+        projectCard.className = `bg-gradient-to-br from-[#23272e]/80 to-[#18181b]/90 rounded-2xl p-5 mb-3 flex items-center justify-between shadow-xl border border-[#23272e] relative group transition-all duration-300 ease-out transform hover:scale-[1.025] hover:-translate-y-1 hover:shadow-2xl animate-fade-in`;
+        projectCard.style.animationDelay = `${idx * 60}ms`;
         
         // Format date
         const date = new Date(project.createdAt);
@@ -1412,19 +1442,19 @@ async function loadUserProjects() {
         
         projectCard.innerHTML = `
           <div class="flex items-center gap-4">
-            <div class="bg-blue-500/10 p-2 rounded-lg flex items-center justify-center">
+            <div class="bg-gradient-to-tr from-blue-500/20 to-blue-400/10 p-3 rounded-xl flex items-center justify-center shadow-inner">
               ${techIcon}
             </div>
             <div>
-              <h3 class="text-white font-semibold text-lg leading-tight">${project.name}</h3>
-              <p class="text-gray-400 text-xs mt-1">${project.technology}</p>
+              <h3 class="text-white font-bold text-lg leading-tight tracking-wide">${project.name}</h3>
+              <p class="text-gray-400 text-xs mt-1 tracking-wide">${project.technology}</p>
             </div>
           </div>
           <div class="flex flex-col items-end gap-2 min-w-[120px]">
-            <span class="text-xs text-gray-500 bg-[#23272e] px-2 py-1 rounded mb-1">${formattedDate}</span>
+            <span class="text-xs text-gray-400 bg-[#23272e] px-2 py-1 rounded mb-1 shadow">${formattedDate}</span>
             <div class="flex gap-2">
               <button onclick="event.stopPropagation(); loadProject('${project._id}')" 
-                class="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition">
+                class="flex items-center gap-1 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-md transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -1432,7 +1462,7 @@ async function loadUserProjects() {
                 Open
               </button>
               <button onclick="event.stopPropagation(); deleteProject('${project._id}')" 
-                class="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition">
+                class="flex items-center gap-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-md transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
@@ -1530,11 +1560,16 @@ async function loadProject(projectId) {
 // Add function to delete a project
 async function deleteProject(projectId) {
   try {
+    console.log('[deleteProject] Called for projectId:', projectId);
     const confirmed = await showAlert('Are you sure you want to delete this project?', 'warning', 'Confirm Delete');
-    if (!confirmed) return;
+    if (!confirmed) {
+      console.log('[deleteProject] User cancelled deletion.');
+      return;
+    }
 
     const token = localStorage.getItem('codexToken');
     if (!token) {
+      console.log('[deleteProject] No token found.');
       await showAlert('Please sign in to delete projects', 'warning', 'Authentication Required');
       return;
     }
@@ -1545,6 +1580,7 @@ async function deleteProject(projectId) {
       projectsList.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div><p class="text-gray-400 mt-2">Deleting project...</p></div>';
     }
 
+    console.log('[deleteProject] Sending DELETE request to backend...');
     const response = await fetch(`http://localhost:4000/projects/${projectId}`, {
       method: 'DELETE',
       headers: {
@@ -1553,9 +1589,12 @@ async function deleteProject(projectId) {
       }
     });
 
+    console.log('[deleteProject] Response status:', response.status);
     const data = await response.json();
+    console.log('[deleteProject] Response data:', data);
 
     if (!response.ok) {
+      console.error('[deleteProject] Error:', data.error || 'Failed to delete project');
       throw new Error(data.error || 'Failed to delete project');
     }
 
@@ -1563,14 +1602,16 @@ async function deleteProject(projectId) {
     await showAlert('Project deleted successfully', 'success', 'Success');
     
     // Reload projects list
+    console.log('[deleteProject] Reloading projects list...');
     await loadUserProjects();
     
     // If we're currently viewing the deleted project, switch back to generator view
     if (document.getElementById('editorView').style.display !== 'none') {
+      console.log('[deleteProject] Switching to generator view.');
       switchToGeneratorView();
     }
   } catch (error) {
-    console.error('Error deleting project:', error);
+    console.error('[deleteProject] Exception:', error);
     await showAlert('Error deleting project: ' + error.message, 'error', 'Error');
     // Reload projects list even if there was an error
     await loadUserProjects();
