@@ -1,19 +1,29 @@
 // Sidebar functionality
-const sidebar = document.getElementById('sidebar');
-const sidebarOverlay = document.getElementById('sidebarOverlay');
-const openSidebarBtn = document.getElementById('openSidebarBtn');
-const closeSidebarBtn = document.getElementById('closeSidebar');
-openSidebarBtn.addEventListener('click', () => {
-  sidebar.classList.remove('translate-x-full');
-  sidebarOverlay.classList.remove('hidden');
-});
-closeSidebarBtn.addEventListener('click', () => {
-  sidebar.classList.add('translate-x-full');
-  sidebarOverlay.classList.add('hidden');
+document.addEventListener('DOMContentLoaded', function() {
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  const openSidebarBtn = document.getElementById('openSidebarBtn');
+  const closeSidebarBtn = document.getElementById('closeSidebar');
+  
+  if (openSidebarBtn) {
+    openSidebarBtn.addEventListener('click', () => {
+      sidebar.classList.remove('translate-x-full');
+      sidebarOverlay.classList.remove('hidden');
+    });
+  }
+  
+  if (closeSidebarBtn) {
+    closeSidebarBtn.addEventListener('click', () => {
+      sidebar.classList.add('translate-x-full');
+      sidebarOverlay.classList.add('hidden');
+    });
+  }
 });
 
 // Close sidebar if overlay is clicked
 window.closeSidebarOnOverlay = function(event) {
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
   if (event.target === sidebarOverlay) {
     sidebar.classList.add('translate-x-full');
     sidebarOverlay.classList.add('hidden');
@@ -65,41 +75,166 @@ window.closeInviteModal = function() {
   document.getElementById('inviteModal').classList.add('hidden');
 };
 window.signOut = function() {
-  alert('Sign out functionality coming soon!');
+  // Clear all auth data
+  localStorage.removeItem('codexToken');
+  localStorage.removeItem('codexUserEmail');
+  localStorage.removeItem('codexUserName');
+  
+  // Reset UI
+  updateSidebarUser('', '');
+  updateGenerateButtonState();
+  
+  // Close sidebar
+  if (sidebar) sidebar.classList.add('translate-x-full');
+  if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
 };
 
 // Sign In Modal logic
 window.openSignInModal = function() {
   document.getElementById('signInModal').classList.remove('hidden');
+  // Reset to login view by default
+  switchToLoginView();
 };
+
 window.closeSignInModal = function() {
   document.getElementById('signInModal').classList.add('hidden');
 };
+
+// Add these new functions for handling the login/signup toggle
+function switchToLoginView() {
+  const loginTab = document.getElementById('loginTab');
+  const signupTab = document.getElementById('signupTab');
+  const usernameField = document.getElementById('usernameField');
+  const submitButtonText = document.getElementById('submitButtonText');
+  
+  loginTab.classList.add('text-white', 'border-b-2', 'border-blue-500');
+  loginTab.classList.remove('text-gray-400');
+  signupTab.classList.add('text-gray-400');
+  signupTab.classList.remove('text-white', 'border-b-2', 'border-blue-500');
+  
+  usernameField.classList.add('hidden');
+  submitButtonText.textContent = 'Login';
+}
+
+function switchToSignupView() {
+  const loginTab = document.getElementById('loginTab');
+  const signupTab = document.getElementById('signupTab');
+  const usernameField = document.getElementById('usernameField');
+  const submitButtonText = document.getElementById('submitButtonText');
+  
+  signupTab.classList.add('text-white', 'border-b-2', 'border-blue-500');
+  signupTab.classList.remove('text-gray-400');
+  loginTab.classList.add('text-gray-400');
+  loginTab.classList.remove('text-white', 'border-b-2', 'border-blue-500');
+  
+  usernameField.classList.remove('hidden');
+  submitButtonText.textContent = 'Sign Up';
+}
+
+// Add event listeners for the tabs
+document.addEventListener('DOMContentLoaded', function() {
+  const loginTab = document.getElementById('loginTab');
+  const signupTab = document.getElementById('signupTab');
+  
+  if (loginTab) {
+    loginTab.addEventListener('click', switchToLoginView);
+  }
+  
+  if (signupTab) {
+    signupTab.addEventListener('click', switchToSignupView);
+  }
+});
+
+// Custom Alert Function
+window.showAlert = function(message, type = 'info', title = 'Alert') {
+  const alertModal = document.getElementById('customAlert');
+  const alertIcon = document.getElementById('alertIcon');
+  const alertTitle = document.getElementById('alertTitle');
+  const alertMessage = document.getElementById('alertMessage');
+  const alertConfirmBtn = document.getElementById('alertConfirmBtn');
+
+  // Set icon based on type
+  let iconHtml = '';
+  let iconBg = '';
+  switch(type) {
+    case 'success':
+      iconHtml = '<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+      iconBg = 'bg-green-500';
+      break;
+    case 'error':
+      iconHtml = '<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+      iconBg = 'bg-red-500';
+      break;
+    case 'warning':
+      iconHtml = '<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+      iconBg = 'bg-yellow-500';
+      break;
+    default:
+      iconHtml = '<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+      iconBg = 'bg-blue-500';
+  }
+
+  alertIcon.innerHTML = iconHtml;
+  alertIcon.className = `w-8 h-8 rounded-full flex items-center justify-center ${iconBg}`;
+  alertTitle.textContent = title;
+  alertMessage.textContent = message;
+  
+  alertModal.classList.remove('hidden');
+  
+  return new Promise((resolve) => {
+    const handleConfirm = () => {
+      alertModal.classList.add('hidden');
+      alertConfirmBtn.removeEventListener('click', handleConfirm);
+      resolve();
+    };
+    
+    alertConfirmBtn.addEventListener('click', handleConfirm);
+  });
+};
+
+// Update the sign in form handler
 const signInForm = document.getElementById('signInForm');
 if (signInForm) {
   signInForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const username = document.getElementById('signInUsername').value.trim();
+    const name = document.getElementById('signInUsername').value.trim();
     const email = document.getElementById('signInEmail').value.trim();
     const password = document.getElementById('signInPassword').value;
+
     try {
-      const res = await fetch('http://localhost:4000/auth/signin', {
+      const endpoint = name ? '/auth/register' : '/auth/login';
+      const body = name ? { name, email, password } : { email, password };
+
+      const res = await fetch(`http://localhost:4000${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(body)
       });
+
       const data = await res.json();
-      if (res.ok && data.success) {
-        alert('Signed in successfully!');
-        window.closeSignInModal();
-        localStorage.setItem('codexUserEmail', email);
-        localStorage.setItem('codexUserName', username);
-        updateSidebarUser(username, email);
+      
+      if (res.ok && data.token) {
+        if (name) {
+          await showAlert('Account created successfully! Please login.', 'success', 'Success');
+          switchToLoginView();
+          this.reset();
+        } else {
+          localStorage.setItem('codexToken', data.token);
+          localStorage.setItem('codexUserEmail', data.user.email);
+          localStorage.setItem('codexUserName', data.user.name);
+          
+          updateSidebarUser(data.user.name, data.user.email);
+          updateGenerateButtonState();
+          closeSignInModal();
+          
+          await showAlert('Signed in successfully!', 'success', 'Success');
+        }
       } else {
-        alert(data.error || 'Sign in failed.');
+        await showAlert(data.error || 'Authentication failed', 'error', 'Error');
       }
     } catch (err) {
-      alert('Network error: ' + err.message);
+      console.error('Auth error:', err);
+      await showAlert('Network error: ' + err.message, 'error', 'Error');
     }
   });
 }
@@ -144,13 +279,25 @@ if (enhanceBtn) enhanceBtn.addEventListener('click', async () => {
 const generateBtn = document.getElementById('generateBtn');
 const generatedCodeDiv = document.getElementById('generatedCode');
 
-// Update the generate code function to track the current model
+// Update the generate code function to save projects
 let isGenerating = false;
 
 // Add this variable at the top of the file with other global variables
 let currentWorkspacePreviewUrl = null;
 
+// Add this function to check if user is logged in
+function isUserLoggedIn() {
+  return localStorage.getItem('codexToken') !== null;
+}
+
+// Update the generate button click handler
 generateBtn?.addEventListener('click', async function() {
+  if (!isUserLoggedIn()) {
+    await showAlert('Please sign in or create an account to generate code', 'warning', 'Authentication Required');
+    openSignInModal();
+    return;
+  }
+
   if (isGenerating) return;
   
   const prompt = document.getElementById('prompt')?.value;
@@ -158,18 +305,16 @@ generateBtn?.addEventListener('click', async function() {
   const model = document.getElementById('model')?.value;
   
   if (!prompt || prompt.trim() === '') {
-    alert('Please enter a prompt');
+    await showAlert('Please enter a prompt', 'error', 'Error');
     return;
   }
   
   isGenerating = true;
-  // Save the current model for code assistant to use
   currentModel = model;
   
   this.disabled = true;
   this.innerHTML = 'Generating <span class="animate-spin ml-2 inline-block">↻</span>';
   
-  // Clear previously generated files
   generatedFiles = [];
   currentWorkspacePreviewUrl = null;
   
@@ -177,7 +322,8 @@ generateBtn?.addEventListener('click', async function() {
     const response = await fetch('http://localhost:4000/generate', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('codexToken')}`
       },
       body: JSON.stringify({ prompt, technology: tech, model })
     });
@@ -185,7 +331,7 @@ generateBtn?.addEventListener('click', async function() {
     const data = await response.json();
     
     if (data.error) {
-      alert('Error: ' + data.error);
+      await showAlert('Error: ' + data.error, 'error', 'Error');
       return;
     }
     
@@ -198,6 +344,32 @@ generateBtn?.addEventListener('click', async function() {
       currentWorkspacePreviewUrl = data.workspace.previewUrl;
     }
     
+    // Save the project to the database
+    const token = localStorage.getItem('codexToken');
+    if (token) {
+      try {
+        const saveResponse = await fetch('http://localhost:4000/projects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: projectName,
+            technology: tech,
+            files: generatedFiles
+          })
+        });
+        
+        const saveData = await saveResponse.json();
+        if (saveData.error) {
+          console.error('Error saving project:', saveData.error);
+        }
+      } catch (error) {
+        console.error('Error saving project:', error);
+      }
+    }
+    
     // Update project name in navbar
     const projectNameEls = document.querySelectorAll('.project-name');
     projectNameEls.forEach(el => el.textContent = projectName);
@@ -205,12 +377,33 @@ generateBtn?.addEventListener('click', async function() {
     switchToEditorView();
   } catch (error) {
     console.error('Error generating code:', error);
-    alert('Error: ' + (error.message || 'Failed to generate code'));
+    await showAlert('Error: ' + (error.message || 'Failed to generate code'), 'error', 'Error');
   } finally {
     isGenerating = false;
     this.disabled = false;
     this.innerHTML = 'Generate';
   }
+});
+
+// Add this to update generate button state when auth state changes
+function updateGenerateButtonState() {
+  const generateBtn = document.getElementById('generateBtn');
+  if (generateBtn) {
+    if (!isUserLoggedIn()) {
+      generateBtn.disabled = true;
+      generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      generateBtn.title = 'Please sign in to generate code';
+    } else {
+      generateBtn.disabled = false;
+      generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      generateBtn.title = 'Generate code';
+    }
+  }
+}
+
+// Call this when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+  updateGenerateButtonState();
 });
 
 // Editor functionality
@@ -554,20 +747,46 @@ function getMainHtmlFile() {
 
 function assembleStaticPreviewHtml() {
   const mainHtml = getMainHtmlFile();
-  if (!mainHtml) return null;
+  if (!mainHtml) {
+    console.error('No main HTML file found');
+    return null;
+  }
+  
+  console.log('Main HTML file found:', mainHtml.path);
   let html = mainHtml.content;
+  
   // Inject CSS files
   const cssFiles = generatedFiles.filter(f => f.path.endsWith('.css'));
+  console.log('Found CSS files:', cssFiles.map(f => f.path));
   if (cssFiles.length > 0) {
     const styles = cssFiles.map(f => `<style>\n${f.content}\n</style>`).join('\n');
-    html = html.replace('</head>', styles + '\n</head>');
+    // Try to inject before </head>, if not found, inject at the start
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${styles}\n</head>`);
+    } else {
+      html = `<head>${styles}</head>${html}`;
+    }
   }
+  
   // Inject JS files
   const jsFiles = generatedFiles.filter(f => f.path.endsWith('.js'));
+  console.log('Found JS files:', jsFiles.map(f => f.path));
   if (jsFiles.length > 0) {
     const scripts = jsFiles.map(f => `<script>\n${f.content}\n</script>`).join('\n');
-    html = html.replace('</body>', scripts + '\n</body>');
+    // Try to inject before </body>, if not found, inject at the end
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', `${scripts}\n</body>`);
+    } else {
+      html = `${html}\n${scripts}`;
+    }
   }
+
+  // Ensure we have a complete HTML document
+  if (!html.includes('<!DOCTYPE html>')) {
+    html = `<!DOCTYPE html>\n<html>\n${html}\n</html>`;
+  }
+
+  console.log('Assembled HTML length:', html.length);
   return html;
 }
 
@@ -576,104 +795,106 @@ window.showPreview = async function() {
   const previewUnavailable = document.getElementById('previewUnavailable');
   const tech = document.getElementById('tech')?.value;
 
-  if (tech === 'static') {
-    // Handle static project preview
-    const mainHtml = getMainHtmlFile();
-    if (mainHtml && previewFrame) {
-      try {
-        const html = assembleStaticPreviewHtml();
-        if (!html) {
-          throw new Error('Failed to assemble HTML');
-        }
-
-        // Clean up previous Blob URL
-        if (currentPreviewBlobUrl) {
-          URL.revokeObjectURL(currentPreviewBlobUrl);
-          currentPreviewBlobUrl = null;
-        }
-
-        // Create Blob and set iframe src
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        currentPreviewBlobUrl = url;
-
-        // Show loading state
-        if (previewUnavailable) {
-          previewUnavailable.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full">
-              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-              <p class="text-gray-400">Loading preview...</p>
-            </div>
-          `;
-          previewUnavailable.style.display = '';
-        }
-
-        // Set up error handling for the iframe
-        previewFrame.onerror = () => {
-          if (previewUnavailable) {
-            previewUnavailable.innerHTML = `
-              <div class="flex flex-col items-center justify-center h-full">
-                <p class="text-red-400 mb-2">Failed to load preview</p>
-                <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                  Retry Preview
-                </button>
-              </div>
-            `;
-            previewUnavailable.style.display = '';
-          }
-          if (previewFrame) previewFrame.style.display = 'none';
-        };
-
-        // Set up load handler
-        previewFrame.onload = () => {
-          if (previewUnavailable) previewUnavailable.style.display = 'none';
-          if (previewFrame) previewFrame.style.display = '';
-        };
-
-        // Set the source
-        previewFrame.src = url;
-      } catch (error) {
-        console.error('Error creating preview:', error);
-        if (previewFrame) previewFrame.style.display = 'none';
-        if (previewUnavailable) {
-          previewUnavailable.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full">
-              <p class="text-red-400 mb-2">Failed to create preview</p>
-              <p class="text-gray-400 text-sm">${error.message}</p>
-              <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                Retry Preview
-              </button>
-            </div>
-          `;
-          previewUnavailable.style.display = '';
-        }
-      }
-    } else {
-      if (previewFrame) previewFrame.style.display = 'none';
-      if (previewUnavailable) {
-        previewUnavailable.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full">
-            <p class="text-gray-400">No HTML file found</p>
-            <p class="text-gray-400 text-sm">Make sure your project includes an HTML file</p>
-          </div>
-        `;
-        previewUnavailable.style.display = '';
-      }
+  // Common loading state function
+  const showLoadingState = (message = 'Loading preview...') => {
+    if (previewUnavailable) {
+      previewUnavailable.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p class="text-gray-400">${message}</p>
+        </div>
+      `;
+      previewUnavailable.style.display = '';
     }
-  } else {
-    // Handle non-static project preview using workspace URL
-    if (previewFrame && currentWorkspacePreviewUrl) {
-      // Show loading state
-      if (previewUnavailable) {
-        previewUnavailable.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-            <p class="text-gray-400">Loading workspace preview...</p>
-            <p class="text-gray-400 text-sm mt-2">This may take a few moments</p>
-          </div>
-        `;
-        previewUnavailable.style.display = '';
+    if (previewFrame) {
+      previewFrame.style.display = 'none';
+      previewFrame.src = ''; // Clear existing src
+    }
+  };
+
+  // Common error state function
+  const showErrorState = (message, subMessage = '') => {
+    if (previewUnavailable) {
+      previewUnavailable.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full">
+          <p class="text-red-400 mb-2">${message}</p>
+          ${subMessage ? `<p class="text-gray-400 text-sm">${subMessage}</p>` : ''}
+          <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+            Retry Preview
+          </button>
+        </div>
+      `;
+      previewUnavailable.style.display = '';
+    }
+    if (previewFrame) {
+      previewFrame.style.display = 'none';
+      previewFrame.src = ''; // Clear existing src
+    }
+  };
+
+  // Common success state function
+  const showSuccessState = () => {
+    if (previewUnavailable) previewUnavailable.style.display = 'none';
+    if (previewFrame) {
+      previewFrame.style.display = '';
+      previewFrame.style.width = '100%';
+      previewFrame.style.height = '100%';
+      previewFrame.style.border = 'none';
+      previewFrame.style.background = '#18181b';
+    }
+  };
+
+  try {
+    if (tech === 'static') {
+      // Handle static project preview
+      const mainHtml = getMainHtmlFile();
+      if (!mainHtml) {
+        showErrorState('No HTML file found', 'Make sure your project includes an HTML file');
+        return;
       }
+
+      showLoadingState('Preparing static preview...');
+
+      const html = assembleStaticPreviewHtml();
+      if (!html) {
+        showErrorState('Failed to assemble HTML', 'Could not combine HTML, CSS, and JavaScript files');
+        return;
+      }
+
+      // Create data URL instead of blob URL
+      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+      
+      // Debug logging
+      console.log('Static preview HTML length:', html.length);
+      console.log('Data URL length:', dataUrl.length);
+
+      // Set up iframe with proper permissions
+      previewFrame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals';
+      
+      // Set up error handling for the iframe
+      previewFrame.onerror = () => {
+        console.error('Iframe error occurred');
+        showErrorState('Failed to load preview', 'The preview could not be loaded');
+      };
+
+      // Set up load handler
+      previewFrame.onload = () => {
+        console.log('Iframe loaded successfully');
+        showSuccessState();
+      };
+
+      // Set the src and ensure the iframe is visible
+      previewFrame.src = dataUrl;
+      previewFrame.style.display = '';
+
+    } else {
+      // Handle non-static project preview (React, Next, Vue)
+      if (!currentWorkspacePreviewUrl) {
+        showErrorState('Workspace preview not available', 'The workspace URL is not set');
+        return;
+      }
+
+      showLoadingState('Loading workspace preview...');
 
       try {
         // Try to load the preview with retry mechanism
@@ -696,54 +917,25 @@ window.showPreview = async function() {
 
         // If we get here, the workspace is ready
         previewFrame.src = currentWorkspacePreviewUrl;
-        previewFrame.style.display = '';
-        if (previewUnavailable) previewUnavailable.style.display = 'none';
-
+        previewFrame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals';
+        
         // Set up error handling for the iframe
         previewFrame.onerror = () => {
-          if (previewUnavailable) {
-            previewUnavailable.innerHTML = `
-              <div class="flex flex-col items-center justify-center h-full">
-                <p class="text-red-400 mb-2">Failed to load workspace preview</p>
-                <p class="text-gray-400 text-sm">Please try refreshing the preview</p>
-                <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                  Retry Preview
-                </button>
-              </div>
-            `;
-            previewUnavailable.style.display = '';
-          }
-          if (previewFrame) previewFrame.style.display = 'none';
+          showErrorState('Failed to load workspace preview', 'Please try refreshing the preview');
+        };
+
+        // Set up load handler
+        previewFrame.onload = () => {
+          showSuccessState();
         };
 
       } catch (error) {
-        // Show error state after all retries failed
-        if (previewUnavailable) {
-          previewUnavailable.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full">
-              <p class="text-red-400 mb-2">Workspace is not ready</p>
-              <p class="text-gray-400 text-sm">The workspace is still starting up or may have failed to start</p>
-              <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                Retry Preview
-              </button>
-            </div>
-          `;
-          previewUnavailable.style.display = '';
-        }
-        if (previewFrame) previewFrame.style.display = 'none';
-      }
-    } else {
-      if (previewFrame) previewFrame.style.display = 'none';
-      if (previewUnavailable) {
-        previewUnavailable.innerHTML = `
-          <div class="flex flex-col items-center justify-center h-full">
-            <p class="text-gray-400">Workspace preview not available</p>
-            <p class="text-gray-400 text-sm">The workspace URL is not set</p>
-          </div>
-        `;
-        previewUnavailable.style.display = '';
+        showErrorState('Workspace is not ready', 'The workspace is still starting up or may have failed to start');
       }
     }
+  } catch (error) {
+    console.error('Preview error:', error);
+    showErrorState('Preview error', error.message);
   }
 };
 
@@ -856,7 +1048,7 @@ window.sendChatMessage = async function() {
     let endpoint = 'http://localhost:4000/chat';
     let requestBody = {
       message: value,
-      history: chatMessages.filter(m => m.role === 'user' || m.role === 'ai')
+      history: chatMessages.filter(m => m.role === 'user' || m.role === 'assistant')
     };
 
     // If we're in the editor view, use the code assistant API instead
@@ -866,7 +1058,7 @@ window.sendChatMessage = async function() {
         message: value,
         files: generatedFiles,
         model: currentModel || 'gemini-2.0-flash',
-        history: chatMessages.filter(m => m.role === 'user' || m.role === 'ai')
+        history: chatMessages.filter(m => m.role === 'user' || m.role === 'assistant')
       };
     }
 
@@ -895,28 +1087,28 @@ window.sendChatMessage = async function() {
           console.log('Applying change:', change);
           if (applyCodeChanges(change.filePath, change.newContent)) {
             chatMessages.push({ 
-              role: 'ai', 
+              role: 'assistant', 
               content: `I've updated ${change.filePath} with the suggested changes while preserving existing code.` 
             });
           } else {
             chatMessages.push({ 
-              role: 'ai', 
+              role: 'assistant', 
               content: `Failed to apply changes to ${change.filePath}. Please try again.` 
             });
           }
         });
       } else {
-        chatMessages.push({ role: 'ai', content: data.reply });
+        chatMessages.push({ role: 'assistant', content: data.reply });
       }
       renderChatMessages();
     } else {
-      chatMessages.push({ role: 'ai', content: 'AI did not reply.' });
+      chatMessages.push({ role: 'assistant', content: 'AI did not reply.' });
       renderChatMessages();
     }
   } catch (err) {
     console.error('Chat error:', err);
     if (chatTyping) chatTyping.classList.add('hidden');
-    chatMessages.push({ role: 'ai', content: 'Network or server error.' });
+    chatMessages.push({ role: 'assistant', content: 'Network or server error.' });
     renderChatMessages();
   }
 }
@@ -1067,16 +1259,59 @@ window.openPreviewInNewTab = function() {
   setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
 }
 
+// Update the updateSidebarUser function to handle UI state
 function updateSidebarUser(username, email) {
   const profileEmail = document.getElementById('sidebarUserEmail');
   const profileName = document.getElementById('sidebarUserName');
   const profileInitial = document.getElementById('sidebarUserInitial');
-  if (profileEmail) profileEmail.textContent = email;
-  if (profileName) profileName.textContent = username;
-  if (profileInitial && username) profileInitial.textContent = username[0].toUpperCase();
-  // Also update editor nav button
+  const sidebarSignIn = document.getElementById('sidebarSignIn');
+  const sidebarSettings = document.getElementById('sidebarSettings');
+  const sidebarAppearance = document.getElementById('sidebarAppearance');
+  const sidebarHelp = document.getElementById('sidebarHelp');
+  const sidebarInvite = document.getElementById('sidebarInvite');
+  const sidebarSignout = document.getElementById('sidebarSignout');
+  const sidebarProjects = document.getElementById('sidebarProjects');
+  
+  if (username && email) {
+    // User is logged in
+    if (profileEmail) profileEmail.textContent = email;
+    if (profileName) profileName.textContent = username;
+    if (profileInitial) profileInitial.textContent = username[0].toUpperCase();
+    
+    // Show authenticated buttons
+    if (sidebarSignIn) sidebarSignIn.style.display = 'none';
+    if (sidebarSettings) sidebarSettings.style.display = '';
+    if (sidebarAppearance) sidebarAppearance.style.display = '';
+    if (sidebarHelp) sidebarHelp.style.display = '';
+    if (sidebarInvite) sidebarInvite.style.display = '';
+    if (sidebarSignout) sidebarSignout.style.display = '';
+    if (sidebarProjects) sidebarProjects.style.display = ''; // Show projects button when logged in
+  } else {
+    // User is not logged in
+    if (profileEmail) profileEmail.textContent = '';
+    if (profileName) profileName.textContent = '';
+    if (profileInitial) profileInitial.textContent = '';
+    
+    // Show login button, hide other buttons
+    if (sidebarSignIn) sidebarSignIn.style.display = '';
+    if (sidebarSettings) sidebarSettings.style.display = 'none';
+    if (sidebarAppearance) sidebarAppearance.style.display = 'none';
+    if (sidebarHelp) sidebarHelp.style.display = 'none';
+    if (sidebarInvite) sidebarInvite.style.display = 'none';
+    if (sidebarSignout) sidebarSignout.style.display = 'none';
+    if (sidebarProjects) sidebarProjects.style.display = 'none'; // Hide projects button when logged out
+  }
+  
+  // Update editor nav button
   const editorInitial = document.getElementById('editorUserInitial');
-  if (editorInitial && username) editorInitial.textContent = username[0].toUpperCase();
+  if (editorInitial) {
+    if (username) {
+      editorInitial.textContent = username[0].toUpperCase();
+      editorInitial.style.display = '';
+    } else {
+      editorInitial.style.display = 'none';
+    }
+  }
 }
 
 // On page load, set sidebar user from localStorage if present
@@ -1092,4 +1327,252 @@ if (editorSidebarBtn && typeof openSidebarBtn !== 'undefined') {
   editorSidebarBtn.onclick = function() {
     openSidebarBtn.click();
   };
-} 
+}
+
+// Add this function to handle project modal
+function openProjectsModal() {
+  // Check if user is logged in
+  const token = localStorage.getItem('codexToken');
+  if (!token) {
+    showAlert('Please sign in to view your projects', 'warning', 'Authentication Required');
+    openSignInModal();
+    return;
+  }
+  
+  // Open the modal
+  const projectsModal = document.getElementById('projectsModal');
+  if (projectsModal) {
+    projectsModal.classList.remove('hidden');
+    // Load projects when modal opens
+    loadUserProjects();
+  }
+}
+
+// Add this after the other sidebar action functions
+window.closeProjectsModal = function() {
+  document.getElementById('projectsModal').classList.add('hidden');
+};
+
+// Add this function to load user projects
+async function loadUserProjects() {
+  const projectsList = document.getElementById('projectsList');
+  const projectsLoading = document.getElementById('projectsLoading');
+  const projectsEmpty = document.getElementById('projectsEmpty');
+  
+  if (projectsLoading) projectsLoading.classList.remove('hidden');
+  if (projectsList) projectsList.innerHTML = '';
+  if (projectsEmpty) projectsEmpty.classList.add('hidden');
+
+  try {
+    const token = localStorage.getItem('codexToken');
+    if (!token) {
+      if (projectsEmpty) {
+        projectsEmpty.textContent = 'Please sign in to view your projects';
+        projectsEmpty.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const response = await fetch('http://localhost:4000/projects', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await response.json();
+
+    if (projectsLoading) projectsLoading.classList.add('hidden');
+
+    if (!data.projects || data.projects.length === 0) {
+      if (projectsEmpty) {
+        projectsEmpty.textContent = 'No projects found';
+        projectsEmpty.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (projectsList) {
+      // Create a grid container
+      const gridContainer = document.createElement('div');
+      gridContainer.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
+      
+      data.projects.forEach(project => {
+        const projectCard = document.createElement('div');
+        projectCard.className = 'bg-[#18181b] border border-[#23272e] rounded-xl p-4 mb-3 flex items-center justify-between shadow-sm hover:bg-[#23272e] transition-all duration-200';
+        
+        // Format date
+        const date = new Date(project.createdAt);
+        const formattedDate = date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+        
+        // Get technology icon
+        const techIcon = getTechnologyIcon(project.technology);
+        
+        projectCard.innerHTML = `
+          <div class="flex items-center gap-4">
+            <div class="bg-blue-500/10 p-2 rounded-lg flex items-center justify-center">
+              ${techIcon}
+            </div>
+            <div>
+              <h3 class="text-white font-semibold text-lg leading-tight">${project.name}</h3>
+              <p class="text-gray-400 text-xs mt-1">${project.technology}</p>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-2 min-w-[120px]">
+            <span class="text-xs text-gray-500 bg-[#23272e] px-2 py-1 rounded mb-1">${formattedDate}</span>
+            <div class="flex gap-2">
+              <button onclick="event.stopPropagation(); loadProject('${project._id}')" 
+                class="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Open
+              </button>
+              <button onclick="event.stopPropagation(); deleteProject('${project._id}')" 
+                class="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Delete
+              </button>
+            </div>
+          </div>
+        `;
+        projectsList.appendChild(projectCard);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading projects:', error);
+    if (projectsEmpty) {
+      projectsEmpty.textContent = 'Error loading projects';
+      projectsEmpty.classList.remove('hidden');
+    }
+  } finally {
+    if (projectsLoading) projectsLoading.classList.add('hidden');
+  }
+}
+
+// Helper function to get technology icon
+function getTechnologyIcon(technology) {
+  const icons = {
+    'React': `<svg class="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    </svg>`,
+    'Next': `<svg class="w-6 h-6 text-black dark:text-white" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    </svg>`,
+    'Vue': `<svg class="w-6 h-6 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    </svg>`,
+    'Static': `<svg class="w-6 h-6 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    </svg>`
+  };
+  
+  return icons[technology] || `<svg class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+  </svg>`;
+}
+
+// Add function to load a specific project
+async function loadProject(projectId) {
+  try {
+    const token = localStorage.getItem('codexToken');
+    if (!token) {
+      await showAlert('Please sign in to load projects', 'warning', 'Authentication Required');
+      return;
+    }
+
+    const response = await fetch(`http://localhost:4000/projects/${projectId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await response.json();
+
+    if (data.error) {
+      await showAlert('Error loading project: ' + data.error, 'error', 'Error');
+      return;
+    }
+
+    // Set the project data
+    generatedFiles = data.files;
+    projectName = data.name;
+    selectedFilePath = generatedFiles[0]?.path || null;
+
+    // Update UI
+    const projectNameEls = document.querySelectorAll('.project-name');
+    projectNameEls.forEach(el => el.textContent = projectName);
+
+    // Switch to editor view
+    switchToEditorView();
+    closeProjectsModal();
+
+    // Initialize Monaco editor with the first file
+    if (monacoEditor && generatedFiles.length > 0) {
+      const firstFile = generatedFiles[0];
+      monacoEditor.setValue(firstFile.content);
+      const lang = guessLanguage(firstFile.path);
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+    }
+
+    // Update file explorer
+    renderFileExplorer();
+  } catch (error) {
+    console.error('Error loading project:', error);
+    await showAlert('Error loading project: ' + error.message, 'error', 'Error');
+  }
+}
+
+// Add function to delete a project
+async function deleteProject(projectId) {
+  try {
+    const confirmed = await showAlert('Are you sure you want to delete this project?', 'warning', 'Confirm Delete');
+    if (!confirmed) return;
+
+    const token = localStorage.getItem('codexToken');
+    if (!token) {
+      await showAlert('Please sign in to delete projects', 'warning', 'Authentication Required');
+      return;
+    }
+
+    // Show loading state
+    const projectsList = document.getElementById('projectsList');
+    if (projectsList) {
+      projectsList.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div><p class="text-gray-400 mt-2">Deleting project...</p></div>';
+    }
+
+    const response = await fetch(`http://localhost:4000/projects/${projectId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to delete project');
+    }
+
+    // Show success message
+    await showAlert('Project deleted successfully', 'success', 'Success');
+    
+    // Reload projects list
+    await loadUserProjects();
+    
+    // If we're currently viewing the deleted project, switch back to generator view
+    if (document.getElementById('editorView').style.display !== 'none') {
+      switchToGeneratorView();
+    }
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    await showAlert('Error deleting project: ' + error.message, 'error', 'Error');
+    // Reload projects list even if there was an error
+    await loadUserProjects();
+  }
+}

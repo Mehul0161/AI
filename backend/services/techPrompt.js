@@ -195,6 +195,7 @@ Requirements:
 - Modern CSS techniques (flexbox, grid, animations)
 - JavaScript best practices
 - Clean project structure
+- use tailwind css as cdn for styling and make the project responsive 
 - Use free images from Pexels/Pixabay
 - Use FontAwesome icons (via CDN)
 - Ensure responsive design
