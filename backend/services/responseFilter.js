@@ -35,6 +35,22 @@ function parseProjectFiles(response, provider = 'gemini') {
         });
       }
     }
+     // Merge '[continued]' files into their base file
+     const merged = {};
+     files.forEach(file => {
+       // Check if file is a continued part
+       const continuedMatch = file.path.match(/^(.*?)(\[continued\])$/i) || file.path.match(/^(.*?)(\(continued\))$/i);
+       if (continuedMatch) {
+         const base = continuedMatch[1];
+         if (!merged[base]) merged[base] = '';
+         merged[base] += '\n' + file.content;
+       } else {
+         if (!merged[file.path]) merged[file.path] = '';
+         merged[file.path] += '\n' + file.content;
+       }
+     });
+     files = Object.entries(merged).map(([path, content]) => ({ path, content: content.trim() }));
+   
   } else if (provider === 'openai') {
     // OpenAI: expects markdown code blocks with file headers
     const fileRegex = /File: (.*?)\n```[a-zA-Z0-9]*\n([\s\S]*?)```/g;
