@@ -86,25 +86,10 @@ router.post('/', async (req, res) => {
   activeRequests.set(requestKey, requestId);
 
   let workspaceInfo = null;
-  if (technology !== 'Static') {
-    console.log(`[${requestId}] Creating workspace`);
-    try {
-      const workspace = await createWorkspace(technology);
-      if (workspace) {
-        workspaceInfo = extractWorkspaceInfo(workspace);
-        const previewUrl = `https://3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
-        console.log(`[${requestId}] Workspace created:`, workspaceInfo);
-        console.log(`[${requestId}] Preview URL:`, previewUrl);
-      } else {
-        console.log(`[${requestId}] Workspace creation failed, continuing with code generation only`);
-      }
-    } catch (error) {
-      console.error(`[${requestId}] Error creating workspace:`, error);
-      // Continue with code generation even if workspace creation fails
-    }
-  }
+  let workspace = null;
 
   try {
+    // Generate code first
     const codeResponse = await generateCode({ prompt, technology, model });
     console.log(`[${requestId}] Raw AI response created`);
     const provider = getProviderFromModel(model.toLowerCase());
@@ -125,6 +110,22 @@ router.post('/', async (req, res) => {
     
     if (!Array.isArray(processedFiles) || processedFiles.length === 0) {
       throw new Error('No valid files were parsed from the AI response');
+    }
+
+    // Create workspace and deploy files if not static
+    if (technology !== 'Static') {
+      console.log(`[${requestId}] Creating workspace with ${processedFiles.length} files`);
+      try {
+        workspace = await createWorkspace(technology, processedFiles);
+        if (workspace) {
+          workspaceInfo = extractWorkspaceInfo(workspace);
+          console.log(`[${requestId}] Workspace created and files deployed:`, workspaceInfo);
+        } else {
+          console.error(`[${requestId}] Failed to create workspace and deploy files`);
+        }
+      } catch (error) {
+        console.error(`[${requestId}] Error creating workspace and deploying files:`, error);
+      }
     }
     
     res.json({ 

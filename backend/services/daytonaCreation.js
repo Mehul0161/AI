@@ -1,6 +1,7 @@
 const { Daytona } = require("@daytonaio/sdk");
 const dotenv = require('dotenv');
 const https = require('https');
+const { deployToWorkspace, isWorkspaceReady, getPreviewUrl } = require('./workspaceDeployer');
 
 dotenv.config();
 
@@ -13,7 +14,7 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false
 });
 
-async function createWorkspace(technology) {
+async function createWorkspace(technology, files) {
     try {
         const cacheKey = `${technology}-${Date.now()}`;
         
@@ -36,7 +37,9 @@ async function createWorkspace(technology) {
             name: `${technology}-${Date.now()}`,
             image: 'daytonaio/ai-test:0.2.3',
             env: {
-                NODE_ENV: 'development'
+                NODE_ENV: 'development',
+                PORT: '3000',
+                HOST: '0.0.0.0'
             },
             resources: {
                 cpu: 2,
@@ -52,17 +55,37 @@ async function createWorkspace(technology) {
             }]
         });
 
-        // Wait for workspace to be ready
+        // Wait for workspace to be ready with increased timeout
         let attempts = 0;
-        const maxAttempts = 10;
+        const maxAttempts = 30; // Increased from 10 to 30
         while (attempts < maxAttempts) {
-            const info = await workspace.info();
-            if (info.state === 'started') {
+            if (await isWorkspaceReady(workspace)) {
+                // Additional wait to ensure the workspace is fully ready
+                await new Promise(resolve => setTimeout(resolve, 5000));
                 break;
             }
+            console.log(`Waiting for workspace to start... Attempt ${attempts + 1}/${maxAttempts}`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
             attempts++;
         }
+
+        if (attempts >= maxAttempts) {
+            console.error('Workspace failed to start within the timeout period');
+            return null;
+        }
+
+        // Deploy files to workspace
+        if (files && files.length > 0) {
+            const deploymentSuccess = await deployToWorkspace(workspace, files, technology);
+            if (!deploymentSuccess) {
+                console.error('Failed to deploy files to workspace');
+                return null;
+            }
+        }
+
+        // Get the preview URL
+        const previewUrl = await getPreviewUrl(workspace);
+        workspace.previewUrl = previewUrl;
 
         // Cache the workspace
         workspaceCache.set(cacheKey, {

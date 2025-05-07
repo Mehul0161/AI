@@ -819,154 +819,84 @@ function assembleStaticPreviewHtml() {
   return html;
 }
 
-window.showPreview = async function() {
-  const previewFrame = document.getElementById('previewFrame');
-  const previewUnavailable = document.getElementById('previewUnavailable');
-  const tech = document.getElementById('tech')?.value;
+// Add this new function for checking workspace readiness
+async function checkWorkspaceReady(url, maxRetries = 30, delay = 2000) {
+    console.log('[Preview] Starting workspace readiness check...');
+    console.log('[Preview] Target URL:', url);
+    
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            console.log(`[Preview] Attempt ${i + 1}/${maxRetries} to check workspace...`);
+            const response = await fetch(url, {
+                method: 'HEAD',
+                mode: 'no-cors',
+                cache: 'no-cache'
+            });
+            
+            console.log('[Preview] Workspace is ready!');
+            return true;
+        } catch (error) {
+            console.log(`[Preview] Workspace not ready yet (attempt ${i + 1}/${maxRetries})`);
+            if (i === maxRetries - 1) {
+                console.error('[Preview] Workspace failed to start within timeout period');
+                throw new Error('Workspace failed to start within the timeout period');
+            }
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    return false;
+}
 
-  // Common loading state function
-  const showLoadingState = (message = 'Loading preview...') => {
-    if (previewUnavailable) {
-      previewUnavailable.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-          <p class="text-gray-400">${message}</p>
-        </div>
-      `;
-      previewUnavailable.style.display = '';
-    }
-    if (previewFrame) {
-      previewFrame.style.display = 'none';
-      previewFrame.src = ''; // Clear existing src
-    }
-  };
+async function showPreview() {
+    console.log('[Preview] Starting preview display...');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewFrame = document.getElementById('previewFrame');
+    const previewUnavailable = document.getElementById('previewUnavailable');
 
-  // Common error state function
-  const showErrorState = (message, subMessage = '') => {
-    if (previewUnavailable) {
-      previewUnavailable.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full">
-          <p class="text-red-400 mb-2">${message}</p>
-          ${subMessage ? `<p class="text-gray-400 text-sm">${subMessage}</p>` : ''}
-          <button onclick="showPreview()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-            Retry Preview
-          </button>
-        </div>
-      `;
-      previewUnavailable.style.display = '';
-    }
-    if (previewFrame) {
-      previewFrame.style.display = 'none';
-      previewFrame.src = ''; // Clear existing src
-    }
-  };
-
-  // Common success state function
-  const showSuccessState = () => {
-    if (previewUnavailable) previewUnavailable.style.display = 'none';
-    if (previewFrame) {
-      previewFrame.style.display = '';
-      previewFrame.style.width = '100%';
-      previewFrame.style.height = '100%';
-      previewFrame.style.border = 'none';
-      previewFrame.style.background = '#18181b';
-    }
-  };
-
-  try {
-    if (tech === 'static') {
-      // Handle static project preview
-      const mainHtml = getMainHtmlFile();
-      if (!mainHtml) {
-        showErrorState('No HTML file found', 'Make sure your project includes an HTML file');
+    if (!currentWorkspacePreviewUrl) {
+        console.error('[Preview] No preview URL available');
+        previewUnavailable.textContent = 'No preview URL available. Please generate a project first.';
+        previewUnavailable.style.display = 'flex';
         return;
-      }
+    }
 
-      showLoadingState('Preparing static preview...');
+    console.log('[Preview] Preview URL:', currentWorkspacePreviewUrl);
 
-      const html = assembleStaticPreviewHtml();
-      if (!html) {
-        showErrorState('Failed to assemble HTML', 'Could not combine HTML, CSS, and JavaScript files');
-        return;
-      }
+    // Show loading state
+    previewUnavailable.textContent = 'Loading preview...';
+    previewUnavailable.style.display = 'flex';
+    previewFrame.style.display = 'none';
 
-      // Create data URL instead of blob URL
-      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-      
-      // Debug logging
-      console.log('Static preview HTML length:', html.length);
-      console.log('Data URL length:', dataUrl.length);
+    try {
+        // Wait for workspace to be ready
+        console.log('[Preview] Waiting for workspace to be ready...');
+        await checkWorkspaceReady(currentWorkspacePreviewUrl);
 
-      // Set up iframe with proper permissions
-      previewFrame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals';
-      
-      // Set up error handling for the iframe
-      previewFrame.onerror = () => {
-        console.error('Iframe error occurred');
-        showErrorState('Failed to load preview', 'The preview could not be loaded');
-      };
-
-      // Set up load handler
-      previewFrame.onload = () => {
-        console.log('Iframe loaded successfully');
-        showSuccessState();
-      };
-
-      // Set the src and ensure the iframe is visible
-      previewFrame.src = dataUrl;
-      previewFrame.style.display = '';
-
-    } else {
-      // Handle non-static project preview (React, Next, Vue)
-      if (!currentWorkspacePreviewUrl) {
-        showErrorState('Workspace preview not available', 'The workspace URL is not set');
-        return;
-      }
-
-      showLoadingState('Loading workspace preview...');
-
-      try {
-        // Try to load the preview with retry mechanism
-        await retryWithBackoff(async () => {
-          return new Promise((resolve, reject) => {
-            const checkWorkspace = async () => {
-              try {
-                const response = await fetch(currentWorkspacePreviewUrl, { 
-                  method: 'HEAD',
-                  mode: 'no-cors'
-                });
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            };
-            checkWorkspace();
-          });
-        });
-
-        // If we get here, the workspace is ready
+        // Configure iframe with necessary permissions
+        console.log('[Preview] Configuring iframe...');
+        previewFrame.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals';
         previewFrame.src = currentWorkspacePreviewUrl;
-        previewFrame.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals';
-        
-        // Set up error handling for the iframe
-        previewFrame.onerror = () => {
-          showErrorState('Failed to load workspace preview', 'Please try refreshing the preview');
-        };
 
-        // Set up load handler
+        // Handle iframe load
         previewFrame.onload = () => {
-          showSuccessState();
+            console.log('[Preview] Iframe loaded successfully');
+            previewUnavailable.style.display = 'none';
+            previewFrame.style.display = 'block';
         };
 
-      } catch (error) {
-        showErrorState('Workspace is not ready', 'The workspace is still starting up or may have failed to start');
-      }
+        // Handle iframe errors
+        previewFrame.onerror = () => {
+            console.error('[Preview] Failed to load iframe');
+            previewUnavailable.textContent = 'Failed to load preview. The development server might be having issues.';
+            previewUnavailable.style.display = 'flex';
+        };
+
+    } catch (error) {
+        console.error('[Preview] Error during preview setup:', error);
+        previewUnavailable.textContent = 'Failed to start preview. Please try again.';
+        previewUnavailable.style.display = 'flex';
     }
-  } catch (error) {
-    console.error('Preview error:', error);
-    showErrorState('Preview error', error.message);
-  }
-};
+}
 
 // Update togglePreview to call showPreview when switching to preview mode
 window.togglePreview = function() {
@@ -1616,4 +1546,43 @@ async function deleteProject(projectId) {
     // Reload projects list even if there was an error
     await loadUserProjects();
   }
+}
+
+// Add this near the top of the file with other global variables
+let currentWorkspaceId = null;
+
+// Add this function to handle workspace cleanup
+async function cleanupWorkspace() {
+    if (!currentWorkspaceId) return;
+    
+    try {
+        console.log(`[Scripts] Cleaning up workspace: ${currentWorkspaceId}`);
+        const response = await fetch(`/api/workspace/${currentWorkspaceId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to clean up workspace');
+        }
+        
+        console.log(`[Scripts] Workspace ${currentWorkspaceId} cleaned up successfully`);
+    } catch (error) {
+        console.error('[Scripts] Error cleaning up workspace:', error);
+    }
+}
+
+// Add event listeners for page unload
+window.addEventListener('beforeunload', cleanupWorkspace);
+window.addEventListener('unload', cleanupWorkspace);
+
+// Update the handleGenerateResponse function to store the workspace ID
+function handleGenerateResponse(response) {
+    // ... existing code ...
+    
+    if (response.workspace) {
+        currentWorkspaceId = response.workspace.id;
+        // ... rest of the existing workspace handling code ...
+    }
+    
+    // ... rest of the existing code ...
 }
