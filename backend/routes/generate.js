@@ -115,20 +115,22 @@ router.post('/', async (req, res) => {
     console.log(`[${requestId}] Provider:`, provider);
     console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
     
-    const files = parseProjectFiles(codeText, provider).map(file => ({
+    const { files, projectName } = parseProjectFiles(codeText, provider);
+    const processedFiles = files.map(file => ({
       ...file,
       provider,
       model,
       technology
     }));
     
-    if (!Array.isArray(files) || files.length === 0) {
+    if (!Array.isArray(processedFiles) || processedFiles.length === 0) {
       throw new Error('No valid files were parsed from the AI response');
     }
     
     res.json({ 
-      files,
-      workspace: workspaceInfo // Now sending the extracted workspace info
+      files: processedFiles,
+      projectName,
+      workspace: workspaceInfo
     });
   } catch (err) {
     console.error(`[${requestId}] Error in /generate:`, err);

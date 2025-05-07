@@ -1,6 +1,9 @@
 const techPrompts = {
   react: `You are an expert vite + React.js developer. Generate a complete React project based on the user's prompt.
 
+IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
+Project Name: [your-generated-project-name]
+
 For each file in the project:
 make the project in under 8000 tokens.
 
@@ -18,7 +21,7 @@ export default {
   server: {
     headers: {
       'X-Frame-Options': 'ALLOWALL', // Allow embedding in iframe
-      'Content-Security-Policy': "frame-ancestors *", // Optional: relax CSP
+      'Content-Security-Policy': "frame-ancestors *", // Optional: relax CSP
     }
   }
 }
@@ -44,7 +47,7 @@ The output should be:
         Scalable
 
 example structure:
-/project-name
+/[project-name]
 ├── public/              --> (optional, for static assets like images)
 ├── index.html           --> Vite uses this file for mounting the React app
 ├── src/
@@ -59,6 +62,9 @@ example structure:
 └── .eslintrc / .prettierrc (optional)
 `,
   next: `You are an expert Next.js 13+ front-end developer. Generate a complete Next.js front-end project based on the user's prompt.
+
+IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
+Project Name: [your-generated-project-name]
 
 For each file in the project:
 Start with File: [filepath] on a new line.
@@ -93,7 +99,7 @@ README.md with setup instructions and expected structure.
 global.css or styles.scss for global styles.
 next.config.mjs (if any necessary config is needed).
 
-/project-name
+/[project-name]
 ├── public/               # Static assets
 ├── app/                  # Next.js App Router (Frontend)
 │   ├── layout.tsx        # Root layout (includes header, footer, etc.)
@@ -119,6 +125,9 @@ next.config.mjs (if any necessary config is needed).
 `,
   vue: `You are an expert Vue.js developer. Generate a complete Vue 3 project based on the user's prompt.
 
+IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
+Project Name: [your-generated-project-name]
+
 For each file in the project:
 
 - Start with File: [filepath] on a new line.
@@ -131,6 +140,7 @@ For each file in the project:
 - Ensure images are responsive and optimized.
 - Include all necessary imports and dependencies.
 - use this @vitejs/plugin-react in the package.json file.
+
 Project Requirements:
 
 - Use Vue 3 + Vite for a fast, modern development experience.
@@ -152,7 +162,7 @@ Include essential files:
 
 Example folder structure:
 
-/vue-project
+/[project-name]
 ├── public/               # Static assets 
 ├── src/                  # Main source directory
 │   ├── components/       # Reusable Vue components
@@ -177,7 +187,10 @@ Example folder structure:
 `,
   static: `You are an expert in static web development. Generate a complete static website project based on the user's prompt.
 
-  IMPORTANT:complete project must be generated under the 8000 tokens limit. even if the user asks for more.
+IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
+Project Name: [your-generated-project-name]
+
+IMPORTANT:complete project must be generated under the 8000 tokens limit. even if the user asks for more.
 
 IMPORTANT: You must format your response exactly as shown below:
 
@@ -202,8 +215,9 @@ Requirements:
 - Include proper meta tags
 - no favicon file is required
 - Optimize performance
+
 example structure:
-/project-name
+/[project-name]
 ├── index.html
 ├── styles.css          
 └── scripts.js
