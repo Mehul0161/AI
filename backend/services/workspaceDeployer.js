@@ -118,16 +118,16 @@ async function deployToWorkspace(workspace, files, technology) {
             // Create a temporary script to start the server with proper host configuration
             const startScript = `
                 cd /home/daytona/testdir && \
-                # Create .env file for Next.js
-                echo 'PORT=3000' > .env.local && \
-                echo 'HOST=0.0.0.0' >> .env.local && \
+                # Create .env file for environment variables
+                echo 'VITE_HOST=0.0.0.0' > .env && \
+                echo 'VITE_PORT=3000' >> .env && \
                 # Update Vite config with allowed hosts
                 cat > vite.config.js << 'EOL'
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [vue()],
   server: {
     host: '0.0.0.0',
     port: 3000,
