@@ -29,10 +29,14 @@ async function deployToWorkspace(workspace, files, technology) {
         const initCommands = [
             'pwd',  // Check current directory
             'ls -la',  // List directory contents
-            'mkdir testdir',  // Create project directory
+            'mkdir -p testdir',  // Create project directory
             'cd testdir',  // Change to project directory
-            'mkdir public src'  // Create necessary directories
         ];
+
+        // Add src directory only for non-static projects
+        if (!technology.toLowerCase().includes('static')) {
+            initCommands.push('mkdir -p public src');
+        }
 
         for (const cmd of initCommands) {
             console.log(`[WorkspaceDeployer] Executing command: ${cmd}`);
@@ -43,11 +47,22 @@ async function deployToWorkspace(workspace, files, technology) {
         // Upload files
         console.log('[WorkspaceDeployer] Starting file upload process...');
         for (const file of files) {
-            const filePath = `/home/daytona/testdir/${file.path}`;
+            // Remove any leading project directory from the path
+            const cleanPath = file.path.replace(/^[^/]+\//, '');
+            const filePath = `/home/daytona/testdir/${cleanPath}`;
             console.log(`[WorkspaceDeployer] Processing file: ${filePath}`);
-            console.log(`[WorkspaceDeployer] File content length: ${file.content.length} bytes`);
             
             try {
+                // Validate file content before processing
+                if (!file.content || typeof file.content !== 'string' || file.content.trim() === '') {
+                    console.error(`[WorkspaceDeployer] Error: Invalid or empty content for file ${file.path}`);
+                    console.error(`[WorkspaceDeployer] Content type: ${typeof file.content}`);
+                    console.error(`[WorkspaceDeployer] Content length: ${file.content ? file.content.length : 0}`);
+                    throw new Error(`Invalid or empty content for file ${file.path}`);
+                }
+
+                console.log(`[WorkspaceDeployer] File content length: ${file.content.length} bytes`);
+                
                 // Create directory if it doesn't exist
                 const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
                 console.log(`[WorkspaceDeployer] Creating directory: ${dirPath}`);
@@ -55,20 +70,87 @@ async function deployToWorkspace(workspace, files, technology) {
                     command: `mkdir -p ${dirPath}` 
                 });
                 console.log(`[WorkspaceDeployer] Directory creation result:`, mkdirResult.output);
+
+                // For package.json, ensure it's valid JSON and has required scripts
+                if (cleanPath === 'package.json') {
+                    try {
+                        const packageJson = JSON.parse(file.content);
+                        // Ensure required scripts exist
+                        if (!packageJson.scripts) {
+                            packageJson.scripts = {};
+                        }
+                        packageJson.scripts.dev = "vite";
+                        packageJson.scripts.build = "vite build";
+                        packageJson.scripts.preview = "vite preview";
+                        
+                        // Ensure required dependencies exist
+                        if (!packageJson.dependencies) {
+                            packageJson.dependencies = {};
+                        }
+                        if (!packageJson.dependencies.react) {
+                            packageJson.dependencies.react = "^18.2.0";
+                        }
+                        if (!packageJson.dependencies["react-dom"]) {
+                            packageJson.dependencies["react-dom"] = "^18.2.0";
+                        }
+                        
+                        // Update the content with the modified package.json
+                        file.content = JSON.stringify(packageJson, null, 2);
+                    } catch (parseError) {
+                        console.error(`[WorkspaceDeployer] Invalid package.json content:`, parseError);
+                        throw new Error(`Invalid package.json format: ${parseError.message}`);
+                    }
+                }
+
+                // Create file with content using echo command
+                const escapedContent = file.content.replace(/'/g, "'\\''");
+                const createFileCmd = `echo '${escapedContent}' > ${filePath}`;
+                console.log(`[WorkspaceDeployer] Creating file with content: ${filePath}`);
+                const createResult = await workspace.process.executeSessionCommand(sessionId, {
+                    command: createFileCmd
+                });
                 
-                // Create a File object from the content
-                console.log(`[WorkspaceDeployer] Creating File object for: ${file.path}`);
-                const fileContent = new File([file.content], file.path.split('/').pop());
+                // Verify file was created and has content
+                const verifyCmd = `cat ${filePath}`;
+                const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
+                    command: verifyCmd
+                });
                 
-                // Upload the file
-                console.log(`[WorkspaceDeployer] Uploading file to: ${filePath}`);
-                await workspace.fs.uploadFile(filePath, fileContent);
-                console.log(`[WorkspaceDeployer] Successfully uploaded: ${filePath}`);
+                if (!verifyResult.output || verifyResult.output.trim() === '') {
+                    throw new Error(`File ${file.path} was created but is empty`);
+                }
+                
+                console.log(`[WorkspaceDeployer] Successfully created and verified: ${filePath}`);
             } catch (uploadError) {
                 console.error(`[WorkspaceDeployer] Error uploading file ${filePath}:`, uploadError);
                 console.error(`[WorkspaceDeployer] Error details:`, uploadError.message);
                 throw uploadError;
             }
+        }
+
+        // Move all files from nested directory to root directory
+        console.log('[WorkspaceDeployer] Moving files to root directory...');
+        const moveResult = await workspace.process.executeSessionCommand(sessionId, {
+            command: 'cd /home/daytona/testdir && find . -maxdepth 1 -type d -not -path "." -not -path "./node_modules" -not -path "./.git" | while read dir; do mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.* . 2>/dev/null || true; rm -rf "$dir"; done'
+        });
+        console.log('[WorkspaceDeployer] Move result:', moveResult.output);
+
+        // Verify package.json is in the correct location
+        const verifyPackageJson = await workspace.process.executeSessionCommand(sessionId, {
+            command: 'cd /home/daytona/testdir && ls -la package.json || echo "package.json not found"'
+        });
+        console.log('[WorkspaceDeployer] Package.json verification:', verifyPackageJson.output);
+
+        // List all files after moving to verify structure
+        const listFiles = await workspace.process.executeSessionCommand(sessionId, {
+            command: 'cd /home/daytona/testdir && ls -la'
+        });
+        console.log('[WorkspaceDeployer] Directory structure after moving files:', listFiles.output);
+
+        // For static websites, we don't need to install dependencies or start a dev server
+        if (technology.toLowerCase().includes('static')) {
+            console.log('[WorkspaceDeployer] Static website detected, skipping dependency installation and server start');
+            return true;
         }
 
         // Install dependencies with retry logic
@@ -80,8 +162,9 @@ async function deployToWorkspace(workspace, files, technology) {
         while (!installSuccess && retryCount < maxRetries) {
             try {
                 console.log(`[WorkspaceDeployer] Running npm install (attempt ${retryCount + 1}/${maxRetries})...`);
+                // Change to the directory containing package.json before running npm install
                 const installResult = await workspace.process.executeSessionCommand(sessionId, { 
-                    command: 'cd /home/daytona/testdir && npm install' 
+                    command: 'cd /home/daytona/testdir && ls -la && npm install' 
                 });
                 console.log('[WorkspaceDeployer] Dependencies installation output:', installResult.output);
                 console.log('[WorkspaceDeployer] Dependencies installation exit code:', installResult.exitCode);
@@ -121,13 +204,44 @@ async function deployToWorkspace(workspace, files, technology) {
                 # Create .env file for environment variables
                 echo 'VITE_HOST=0.0.0.0' > .env && \
                 echo 'VITE_PORT=3000' >> .env && \
-                # Update Vite config with allowed hosts
+                # Ensure main.jsx has proper React setup
+                cat > main.jsx << 'EOL'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
+EOL
+                # Ensure index.html has proper root element
+                cat > index.html << 'EOL'
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetris Game</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.jsx"></script>
+  </body>
+</html>
+EOL
+                # Update Vite config with allowed hosts and proper base URL
                 cat > vite.config.js << 'EOL'
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+${technology.toLowerCase().includes('react') ? "import react from '@vitejs/plugin-react'" : 
+  technology.toLowerCase().includes('vue') ? "import vue from '@vitejs/plugin-vue'" : ""}
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [${technology.toLowerCase().includes('react') ? 'react()' : 
+    technology.toLowerCase().includes('vue') ? 'vue()' : ''}],
+  base: '/',
   server: {
     host: '0.0.0.0',
     port: 3000,
@@ -139,13 +253,35 @@ export default defineConfig({
     ],
     hmr: {
       clientPort: 443,
-      host: '${previewHost}'
+      host: '${previewHost}',
+      protocol: 'wss'
+    },
+    watch: {
+      usePolling: true,
+      interval: 1000
+    },
+    cors: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*'
+    }
+  },
+  build: {
+    sourcemap: true,
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
     }
   }
 })
 EOL
+                # Install the correct plugin based on technology
+                ${technology.toLowerCase().includes('react') ? 'npm install @vitejs/plugin-react --save-dev' : 
+                  technology.toLowerCase().includes('vue') ? 'npm install @vitejs/plugin-vue --save-dev' : ''} && \
                 # Start the server in background and save PID
-                nohup ${startCommand} > dev-server.log 2>&1 & echo $!
+                nohup ${startCommand} > dev-server.log 2>&1 & echo $! > server.pid
             `;
             
             const serverResult = await workspace.process.executeSessionCommand(sessionId, { 
@@ -153,8 +289,11 @@ EOL
                 timeout: 30000  // 30 second timeout for starting the process
             });
             
-            // Get the process ID from the output
-            const pid = serverResult.output.trim();
+            // Get the process ID from the pid file
+            const pidResult = await workspace.process.executeSessionCommand(sessionId, {
+                command: 'cat /home/daytona/testdir/server.pid'
+            });
+            const pid = pidResult.output.trim();
             console.log('[WorkspaceDeployer] Development server started with PID:', pid);
             
             // Wait for server to start (with multiple checks)
@@ -167,9 +306,9 @@ EOL
                 attempts++;
                 console.log(`[WorkspaceDeployer] Checking server status (attempt ${attempts}/${maxAttempts})...`);
                 
-                // Check if process is running
+                // Check if process is running using the pid file
                 const processCheck = await workspace.process.executeSessionCommand(sessionId, {
-                    command: `ps -p ${pid} > /dev/null && echo "running" || echo "not running"`
+                    command: `if [ -f /home/daytona/testdir/server.pid ] && ps -p $(cat /home/daytona/testdir/server.pid) > /dev/null; then echo "running"; else echo "not running"; fi`
                 });
                 
                 if (processCheck.output.trim() !== 'running') {
@@ -192,9 +331,23 @@ EOL
                     console.log(`[WorkspaceDeployer] Port check status: ${status}`);
                     
                     if (status === '200') {
-                        serverReady = true;
-                        console.log('[WorkspaceDeployer] Server is responding on port 3000');
-                        break;
+                        // Additional check for actual content
+                        const contentCheck = await workspace.process.executeSessionCommand(sessionId, {
+                            command: 'curl -s http://localhost:3000 | grep -q "<html" && echo "has_content" || echo "no_content"',
+                            timeout: 5000
+                        });
+                        
+                        if (contentCheck.output.trim() === 'has_content') {
+                            serverReady = true;
+                            console.log('[WorkspaceDeployer] Server is responding with content on port 3000');
+                            break;
+                        } else {
+                            console.log('[WorkspaceDeployer] Server responded but no content found, checking logs...');
+                            const logCheck = await workspace.process.executeSessionCommand(sessionId, {
+                                command: 'cat /home/daytona/testdir/dev-server.log'
+                            });
+                            console.log('[WorkspaceDeployer] Current server log:', logCheck.output);
+                        }
                     }
                 } catch (error) {
                     console.log('[WorkspaceDeployer] Server not ready yet, waiting...');
@@ -220,6 +373,35 @@ EOL
             }
             
             console.log('[WorkspaceDeployer] Development server is running and ready');
+
+            // Set up file watching for AI-generated changes
+            console.log('[WorkspaceDeployer] Setting up file watching for AI changes...');
+            const watchScript = `
+                cd /home/daytona/testdir && \
+                # Create a watcher script
+                cat > watch-changes.sh << 'EOL'
+#!/bin/bash
+while true; do
+    if [ -f "dev-server.log" ]; then
+        if grep -q "AI changes detected" "dev-server.log"; then
+            echo "AI changes detected, restarting server..."
+            pkill -f "node.*3000" || true
+            npm run dev -- --port 3000 --host 0.0.0.0 > dev-server.log 2>&1 &
+        fi
+    fi
+    sleep 5
+done
+EOL
+                chmod +x watch-changes.sh && \
+                nohup ./watch-changes.sh > watcher.log 2>&1 &
+            `;
+            
+            await workspace.process.executeSessionCommand(sessionId, {
+                command: watchScript,
+                timeout: 10000
+            });
+            
+            console.log('[WorkspaceDeployer] File watching setup complete');
         } catch (error) {
             console.error('[WorkspaceDeployer] Error starting development server:', error);
             throw error;
