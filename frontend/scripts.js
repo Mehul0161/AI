@@ -853,29 +853,41 @@ async function showPreview() {
     const previewFrame = document.getElementById('previewFrame');
     const previewUnavailable = document.getElementById('previewUnavailable');
 
-    if (!currentWorkspacePreviewUrl) {
-        console.error('[Preview] No preview URL available');
-        previewUnavailable.textContent = 'No preview URL available. Please generate a project first.';
-        previewUnavailable.style.display = 'flex';
-        return;
-    }
-
-    console.log('[Preview] Preview URL:', currentWorkspacePreviewUrl);
-
     // Show loading state
     previewUnavailable.textContent = 'Loading preview...';
     previewUnavailable.style.display = 'flex';
     previewFrame.style.display = 'none';
 
     try {
-        // Wait for workspace to be ready
-        console.log('[Preview] Waiting for workspace to be ready...');
-        await checkWorkspaceReady(currentWorkspacePreviewUrl);
-
-        // Configure iframe with necessary permissions
-        console.log('[Preview] Configuring iframe...');
-        previewFrame.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals';
-        previewFrame.src = currentWorkspacePreviewUrl;
+        if (currentWorkspacePreviewUrl) {
+            // Handle workspace preview
+            console.log('[Preview] Using workspace preview URL:', currentWorkspacePreviewUrl);
+            await checkWorkspaceReady(currentWorkspacePreviewUrl);
+            previewFrame.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals';
+            previewFrame.src = currentWorkspacePreviewUrl;
+        } else {
+            // Handle static preview
+            console.log('[Preview] Using static preview');
+            const html = assembleStaticPreviewHtml();
+            if (!html) {
+                throw new Error('No HTML content available for preview');
+            }
+            
+            // Create blob URL for the static preview
+            const blob = new Blob([html], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // Configure iframe for static preview
+            previewFrame.sandbox = 'allow-scripts allow-same-origin';
+            previewFrame.src = blobUrl;
+            
+            // Clean up blob URL after iframe loads
+            previewFrame.onload = () => {
+                URL.revokeObjectURL(blobUrl);
+                previewUnavailable.style.display = 'none';
+                previewFrame.style.display = 'block';
+            };
+        }
 
         // Handle iframe load
         previewFrame.onload = () => {
@@ -887,7 +899,7 @@ async function showPreview() {
         // Handle iframe errors
         previewFrame.onerror = () => {
             console.error('[Preview] Failed to load iframe');
-            previewUnavailable.textContent = 'Failed to load preview. The development server might be having issues.';
+            previewUnavailable.textContent = 'Failed to load preview. Please try again.';
             previewUnavailable.style.display = 'flex';
         };
 
@@ -1210,12 +1222,21 @@ if (chatInput) {
 }
 
 window.openPreviewInNewTab = function() {
-  const html = assembleStaticPreviewHtml();
-  if (!html) return;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
+    if (currentWorkspacePreviewUrl) {
+        // For workspace previews, open the workspace URL
+        window.open(currentWorkspacePreviewUrl, '_blank');
+    } else {
+        // For static previews, create and open a blob URL
+        const html = assembleStaticPreviewHtml();
+        if (!html) {
+            console.error('No HTML content available for preview');
+            return;
+        }
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
+    }
 }
 
 // Update the updateSidebarUser function to handle UI state
