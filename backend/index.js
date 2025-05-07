@@ -15,18 +15,23 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection with better error handling
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/test', {
-  // Removed deprecated options
-})
-.then(() => {
-  console.log('Successfully connected to MongoDB.');
-  console.log('Database:', mongoose.connection.name);
-  console.log('Host:', mongoose.connection.host);
-})
-.catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1); // Exit if cannot connect to database
-});
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/test', {
+      // Removed deprecated options
+    });
+    console.log('Successfully connected to MongoDB.');
+    console.log('Database:', mongoose.connection.name);
+    console.log('Host:', mongoose.connection.host);
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    // Don't exit process in serverless environment
+    // process.exit(1);
+  }
+};
+
+// Initialize database connection
+connectDB();
 
 // Add connection error handler
 mongoose.connection.on('error', err => {
@@ -83,8 +88,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-}); 
+// Export the Express API
+module.exports = app;
+
+// Start server only if not in serverless environment
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+} 
