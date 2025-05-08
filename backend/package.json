@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "vercel-build": "echo 'Building for Vercel'"
+    "vercel-build": "echo 'Building for Vercel'",
+    "build": "echo 'Building for production'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",

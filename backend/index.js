@@ -26,8 +26,15 @@ app.use(express.json());
 // MongoDB Connection with better error handling
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/test', {
-      // Removed deprecated options
+    const mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri) {
+      console.error('MONGODB_URI is not defined in environment variables');
+      return;
+    }
+    
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     });
     console.log('Successfully connected to MongoDB.');
     console.log('Database:', mongoose.connection.name);
@@ -35,11 +42,10 @@ const connectDB = async () => {
   } catch (err) {
     console.error('MongoDB connection error:', err);
     // Don't exit process in serverless environment
-    // process.exit(1);
   }
 };
 
-// Initialize database connection
+// Connect to MongoDB
 connectDB();
 
 // Add connection error handler
