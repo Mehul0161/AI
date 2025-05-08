@@ -236,7 +236,10 @@ if (signInForm) {
       const endpoint = name ? '/auth/register' : '/auth/login';
       const body = name ? { name, email, password } : { email, password };
 
-      const res = await fetch(baseUrl + `${endpoint}`, {
+      console.log('Sending request to:', baseUrl + endpoint);
+      console.log('Request body:', body);
+
+      const res = await fetch(baseUrl + endpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -246,6 +249,7 @@ if (signInForm) {
       });
 
       const data = await res.json();
+      console.log('Response:', data);
 
       if (!res.ok) {
         throw new Error(data.error || 'Authentication failed');

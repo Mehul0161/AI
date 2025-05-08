@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+// Drop the existing model if it exists
+mongoose.models = {};
+
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -65,7 +68,7 @@ userSchema.post('save', function(error, doc, next) {
   }
 });
 
-// Drop any existing indexes
+// Create index on email field
 userSchema.index({ email: 1 }, { unique: true });
 
 const User = mongoose.model('User', userSchema);

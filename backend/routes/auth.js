@@ -52,8 +52,21 @@ router.post('/register', async (req, res) => {
       name
     });
 
-    await user.save();
-    console.log('User created successfully:', email);
+    console.log('Attempting to save new user:', { email: user.email, name: user.name });
+    
+    try {
+      await user.save();
+      console.log('User saved successfully:', user.email);
+    } catch (saveError) {
+      console.error('Error saving user:', saveError);
+      if (saveError.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email already registered'
+        });
+      }
+      throw saveError;
+    }
 
     // Generate token
     const token = jwt.sign(
