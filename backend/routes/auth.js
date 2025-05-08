@@ -18,8 +18,25 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Validate email format
+    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid email address'
+      });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long'
+      });
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       console.log('User already exists:', email);
       return res.status(400).json({ 
@@ -30,7 +47,7 @@ router.post('/register', async (req, res) => {
 
     // Create new user
     const user = new User({
-      email,
+      email: email.toLowerCase(),
       password,
       name
     });
@@ -56,6 +73,22 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in register route:', error);
+    
+    // Handle specific error types
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        error: Object.values(error.errors).map(err => err.message).join(', ')
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email already registered'
+      });
+    }
+
     res.status(500).json({ 
       success: false,
       error: 'Error creating user',

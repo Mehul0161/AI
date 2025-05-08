@@ -242,18 +242,16 @@ if (signInForm) {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        credentials: 'include',
         body: JSON.stringify(body)
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to create user');
-      }
-
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
       
-      if (res.ok && data.token) {
+      if (data.success && data.token) {
         if (name) {
           await showAlert('Account created successfully! Please login.', 'success', 'Success');
           switchToLoginView();
@@ -274,7 +272,7 @@ if (signInForm) {
       }
     } catch (err) {
       console.error('Auth error:', err);
-      await showAlert('Network error: ' + err.message, 'error', 'Error');
+      await showAlert(err.message || 'Network error occurred', 'error', 'Error');
     }
   });
 }
