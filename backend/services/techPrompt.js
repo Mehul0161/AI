@@ -37,6 +37,7 @@ Include essential files:
 package.json with all dependencies.
 README.md with clear setup instructions.
 index.html and index.css are essential
+is has to be a single page application. no need to create multiple pages.
 main.jsx or index.js
 
 Any required configuration files (like .eslintrc, vite.config.js, .prettierrc)
@@ -75,6 +76,7 @@ use this @fortawesome/react-fontawesome": "^0.2.0" in the package.json file.
 Use free images from Pexels, or Pixabay when external images are required.
 Ensure images are responsive and optimized.
 Include all necessary imports and dependencies.
+is has to be a single page application. no need to create multiple pages.
 script should be like this in the package.json file.
 "scripts": {
     "dev": "vite",
@@ -140,7 +142,7 @@ For each file in the project:
 - Ensure images are responsive and optimized.
 - Include all necessary imports and dependencies.
 - use this @vitejs/plugin-react in the package.json file.
-
+- is has to be a single page application. no need to create multiple pages.
 Project Requirements:
 
 - Use Vue 3 + Vite for a fast, modern development experience.
@@ -215,7 +217,7 @@ Requirements:
 - Include proper meta tags
 - no favicon file is required
 - Optimize performance
-
+- is has to be a single page application. no need to create multiple pages.
 example structure:
 /[project-name]
 ├── index.html

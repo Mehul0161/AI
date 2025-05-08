@@ -66,14 +66,14 @@ function getProviderFromModel(model) {
 
 // POST /generate
 router.post('/', async (req, res) => {
+  const requestId = Date.now();
+  const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
+  
   try {
-    console.log(`[${Date.now()}] Received /generate request:`, req.body);
+    console.log(`[${requestId}] Received /generate request:`, req.body);
     
     // Set a longer timeout for the response
     req.setTimeout(300000); // 5 minutes
-    
-    const requestId = Date.now();
-    const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
     
     // Check if this exact request is already being processed
     if (activeRequests.has(requestKey)) {
@@ -93,54 +93,68 @@ router.post('/', async (req, res) => {
     let workspaceInfo = null;
     let workspace = null;
 
-    // Generate code first
-    const codeResponse = await generateCode({ prompt, technology, model });
-    console.log(`[${requestId}] Raw AI response created`);
-    const provider = getProviderFromModel(model.toLowerCase());
-    let codeText = extractCodeTextFromResponse(codeResponse, provider);
-    if (provider === 'claude' && Array.isArray(codeText)) {
-      codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
-    }
-    console.log(`[${requestId}] Provider:`, provider);
-    console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
-    
-    const { files, projectName } = parseProjectFiles(codeText, provider);
-    const processedFiles = files.map(file => ({
-      ...file,
-      provider,
-      model,
-      technology
-    }));
-    
-    if (!Array.isArray(processedFiles) || processedFiles.length === 0) {
-      throw new Error('No valid files were parsed from the AI response');
-    }
-
-    // Create workspace and deploy files if not static
-    if (technology !== 'Static') {
-      console.log(`[${requestId}] Creating workspace with ${processedFiles.length} files`);
-      try {
-        workspace = await createWorkspace(technology, processedFiles);
-        if (workspace) {
-          workspaceInfo = extractWorkspaceInfo(workspace);
-          console.log(`[${requestId}] Workspace created and files deployed:`, workspaceInfo);
-        } else {
-          console.error(`[${requestId}] Failed to create workspace and deploy files`);
-        }
-      } catch (error) {
-        console.error(`[${requestId}] Error creating workspace and deploying files:`, error);
+    try {
+      // Generate code first
+      console.log(`[${requestId}] Generating code...`);
+      const codeResponse = await generateCode({ prompt, technology, model });
+      console.log(`[${requestId}] Raw AI response created`);
+      
+      const provider = getProviderFromModel(model.toLowerCase());
+      let codeText = extractCodeTextFromResponse(codeResponse, provider);
+      
+      if (provider === 'claude' && Array.isArray(codeText)) {
+        codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
       }
+      
+      console.log(`[${requestId}] Provider:`, provider);
+      console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
+      
+      const { files, projectName } = parseProjectFiles(codeText, provider);
+      const processedFiles = files.map(file => ({
+        ...file,
+        provider,
+        model,
+        technology
+      }));
+      
+      if (!Array.isArray(processedFiles) || processedFiles.length === 0) {
+        throw new Error('No valid files were parsed from the AI response');
+      }
+
+      // Create workspace and deploy files if not static
+      if (technology !== 'Static') {
+        console.log(`[${requestId}] Creating workspace with ${processedFiles.length} files`);
+        try {
+          workspace = await createWorkspace(technology, processedFiles);
+          if (workspace) {
+            workspaceInfo = extractWorkspaceInfo(workspace);
+            console.log(`[${requestId}] Workspace created and files deployed:`, workspaceInfo);
+          } else {
+            console.error(`[${requestId}] Failed to create workspace and deploy files`);
+            throw new Error('Failed to create workspace');
+          }
+        } catch (error) {
+          console.error(`[${requestId}] Error creating workspace and deploying files:`, error);
+          throw new Error(`Workspace deployment failed: ${error.message}`);
+        }
+      }
+      
+      res.json({ 
+        files: processedFiles,
+        projectName,
+        workspace: workspaceInfo
+      });
+    } catch (error) {
+      console.error(`[${requestId}] Generate error:`, error);
+      res.status(500).json({
+        error: error.message || 'Failed to generate project',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
-    
-    res.json({ 
-      files: processedFiles,
-      projectName,
-      workspace: workspaceInfo
-    });
   } catch (error) {
-    console.error('Generate error:', error);
+    console.error(`[${requestId}] Unexpected error:`, error);
     res.status(500).json({
-      error: error.message || 'Failed to generate project',
+      error: 'An unexpected error occurred',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   } finally {

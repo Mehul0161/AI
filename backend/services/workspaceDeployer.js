@@ -24,12 +24,13 @@ async function deployToWorkspace(workspace, files, technology) {
         const session = await workspace.process.createSession(sessionId);
         console.log(`[WorkspaceDeployer] Session created successfully with ID: ${sessionId}`);
 
-        // Initialize workspace directory
+        // Initialize workspace directory with better error handling
         console.log('[WorkspaceDeployer] Initializing workspace directory...');
         const initCommands = [
             'pwd',  // Check current directory
             'ls -la',  // List directory contents
-            'mkdir -p testdir',  // Create project directory
+            'rm -rf testdir',  // Clean up any existing directory
+            'mkdir -p testdir',  // Create fresh project directory
             'cd testdir',  // Change to project directory
         ];
 
@@ -40,120 +41,74 @@ async function deployToWorkspace(workspace, files, technology) {
 
         for (const cmd of initCommands) {
             console.log(`[WorkspaceDeployer] Executing command: ${cmd}`);
-            const result = await workspace.process.executeSessionCommand(sessionId, { command: cmd });
+            const result = await workspace.process.executeSessionCommand(sessionId, { 
+                command: cmd,
+                timeout: 30000  // 30 second timeout for each command
+            });
             console.log(`[WorkspaceDeployer] Command output:`, result.output);
         }
 
-        // Upload files
+        // Upload files with improved error handling
         console.log('[WorkspaceDeployer] Starting file upload process...');
         for (const file of files) {
-            // Remove any leading project directory from the path
             const cleanPath = file.path.replace(/^[^/]+\//, '');
             const filePath = `/home/daytona/testdir/${cleanPath}`;
             console.log(`[WorkspaceDeployer] Processing file: ${filePath}`);
             
             try {
-                // Validate file content before processing
                 if (!file.content || typeof file.content !== 'string' || file.content.trim() === '') {
                     console.error(`[WorkspaceDeployer] Error: Invalid or empty content for file ${file.path}`);
-                    console.error(`[WorkspaceDeployer] Content type: ${typeof file.content}`);
-                    console.error(`[WorkspaceDeployer] Content length: ${file.content ? file.content.length : 0}`);
                     throw new Error(`Invalid or empty content for file ${file.path}`);
                 }
 
-                console.log(`[WorkspaceDeployer] File content length: ${file.content.length} bytes`);
-                
-                // Create directory if it doesn't exist
+                // Create directory with error handling
                 const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
                 console.log(`[WorkspaceDeployer] Creating directory: ${dirPath}`);
-                const mkdirResult = await workspace.process.executeSessionCommand(sessionId, { 
-                    command: `mkdir -p ${dirPath}` 
+                await workspace.process.executeSessionCommand(sessionId, { 
+                    command: `mkdir -p ${dirPath}`,
+                    timeout: 30000
                 });
-                console.log(`[WorkspaceDeployer] Directory creation result:`, mkdirResult.output);
 
-                // For package.json, ensure it's valid JSON and has required scripts
-                if (cleanPath === 'package.json') {
-                    try {
-                        const packageJson = JSON.parse(file.content);
-                        // Ensure required scripts exist
-                        if (!packageJson.scripts) {
-                            packageJson.scripts = {};
-                        }
-                        packageJson.scripts.dev = "vite";
-                        packageJson.scripts.build = "vite build";
-                        packageJson.scripts.preview = "vite preview";
-                        
-                        // Ensure required dependencies exist
-                        if (!packageJson.dependencies) {
-                            packageJson.dependencies = {};
-                        }
-                        if (!packageJson.dependencies.react) {
-                            packageJson.dependencies.react = "^18.2.0";
-                        }
-                        if (!packageJson.dependencies["react-dom"]) {
-                            packageJson.dependencies["react-dom"] = "^18.2.0";
-                        }
-                        
-                        // Update the content with the modified package.json
-                        file.content = JSON.stringify(packageJson, null, 2);
-                    } catch (parseError) {
-                        console.error(`[WorkspaceDeployer] Invalid package.json content:`, parseError);
-                        throw new Error(`Invalid package.json format: ${parseError.message}`);
-                    }
-                }
-
-                // Create file with content using echo command
+                // Write file content with proper escaping
                 const escapedContent = file.content.replace(/'/g, "'\\''");
                 const createFileCmd = `echo '${escapedContent}' > ${filePath}`;
-                console.log(`[WorkspaceDeployer] Creating file with content: ${filePath}`);
-                const createResult = await workspace.process.executeSessionCommand(sessionId, {
-                    command: createFileCmd
+                await workspace.process.executeSessionCommand(sessionId, {
+                    command: createFileCmd,
+                    timeout: 30000
                 });
-                
-                // Verify file was created and has content
+
+                // Verify file content
                 const verifyCmd = `cat ${filePath}`;
                 const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
-                    command: verifyCmd
+                    command: verifyCmd,
+                    timeout: 30000
                 });
-                
+
                 if (!verifyResult.output || verifyResult.output.trim() === '') {
                     throw new Error(`File ${file.path} was created but is empty`);
                 }
-                
+
                 console.log(`[WorkspaceDeployer] Successfully created and verified: ${filePath}`);
             } catch (uploadError) {
                 console.error(`[WorkspaceDeployer] Error uploading file ${filePath}:`, uploadError);
-                console.error(`[WorkspaceDeployer] Error details:`, uploadError.message);
                 throw uploadError;
             }
         }
 
-        // Move all files from nested directory to root directory
+        // Move files to root directory with error handling
         console.log('[WorkspaceDeployer] Moving files to root directory...');
-        const moveResult = await workspace.process.executeSessionCommand(sessionId, {
-            command: 'cd /home/daytona/testdir && find . -maxdepth 1 -type d -not -path "." -not -path "./node_modules" -not -path "./.git" | while read dir; do mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.* . 2>/dev/null || true; rm -rf "$dir"; done'
+        await workspace.process.executeSessionCommand(sessionId, {
+            command: 'cd /home/daytona/testdir && find . -maxdepth 1 -type d -not -path "." -not -path "./node_modules" -not -path "./.git" | while read dir; do mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.* . 2>/dev/null || true; rm -rf "$dir"; done',
+            timeout: 60000
         });
-        console.log('[WorkspaceDeployer] Move result:', moveResult.output);
 
-        // Verify package.json is in the correct location
-        const verifyPackageJson = await workspace.process.executeSessionCommand(sessionId, {
-            command: 'cd /home/daytona/testdir && ls -la package.json || echo "package.json not found"'
-        });
-        console.log('[WorkspaceDeployer] Package.json verification:', verifyPackageJson.output);
-
-        // List all files after moving to verify structure
-        const listFiles = await workspace.process.executeSessionCommand(sessionId, {
-            command: 'cd /home/daytona/testdir && ls -la'
-        });
-        console.log('[WorkspaceDeployer] Directory structure after moving files:', listFiles.output);
-
-        // For static websites, we don't need to install dependencies or start a dev server
+        // For static websites, skip dependency installation
         if (technology.toLowerCase().includes('static')) {
-            console.log('[WorkspaceDeployer] Static website detected, skipping dependency installation and server start');
+            console.log('[WorkspaceDeployer] Static website detected, skipping dependency installation');
             return true;
         }
 
-        // Install dependencies with retry logic
+        // Install dependencies with improved error handling and retry logic
         console.log('[WorkspaceDeployer] Starting dependency installation...');
         let installSuccess = false;
         let retryCount = 0;
@@ -162,187 +117,131 @@ async function deployToWorkspace(workspace, files, technology) {
         while (!installSuccess && retryCount < maxRetries) {
             try {
                 console.log(`[WorkspaceDeployer] Running npm install (attempt ${retryCount + 1}/${maxRetries})...`);
-                // Change to the directory containing package.json before running npm install
+                
+                // Create a temporary script for npm installation
+                const installScript = `
+                    cd /home/daytona/testdir && \
+                    # Set npm configuration
+                    npm config set fetch-retry-mintimeout 20000 && \
+                    npm config set fetch-retry-maxtimeout 120000 && \
+                    npm config set fetch-timeout 300000 && \
+                    # Install dependencies with optimized settings
+                    npm install --no-audit --no-fund --prefer-offline --no-package-lock --legacy-peer-deps
+                `;
+                
                 const installResult = await workspace.process.executeSessionCommand(sessionId, { 
-                    command: 'cd /home/daytona/testdir && ls -la && npm install' 
+                    command: installScript,
+                    timeout: 300000  // 5 minutes timeout
                 });
+                
                 console.log('[WorkspaceDeployer] Dependencies installation output:', installResult.output);
-                console.log('[WorkspaceDeployer] Dependencies installation exit code:', installResult.exitCode);
                 installSuccess = true;
             } catch (error) {
                 retryCount++;
+                console.error(`[WorkspaceDeployer] Install attempt ${retryCount} failed:`, error);
+                
                 if (retryCount === maxRetries) {
-                    throw error;
+                    throw new Error(`Failed to install dependencies after ${maxRetries} attempts: ${error.message}`);
                 }
-                console.log(`[WorkspaceDeployer] Install attempt ${retryCount} failed, retrying in 5 seconds...`);
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                
+                console.log(`[WorkspaceDeployer] Retrying in 10 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
         }
 
-        // Start development server in background
-        console.log('[WorkspaceDeployer] Starting development server in background...');
+        // Start development server with improved error handling
+        console.log('[WorkspaceDeployer] Starting development server...');
         const startCommand = getStartCommand(technology);
-        console.log(`[WorkspaceDeployer] Using start command: ${startCommand}`);
         
-        // Start the server in the background without waiting for completion
         try {
-            console.log('[WorkspaceDeployer] Executing development server command...');
-            
             // Get workspace info for the correct host
             const workspaceInfo = await workspace.info();
             const previewHost = `3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
-            console.log(`[WorkspaceDeployer] Using preview host: ${previewHost}`);
-
+            
             // Kill any existing processes on port 3000
             await workspace.process.executeSessionCommand(sessionId, {
-                command: 'pkill -f "node.*3000" || true'
+                command: 'pkill -f "node.*3000" || true',
+                timeout: 30000
             });
 
-            // Create a temporary script to start the server with proper host configuration
+            // Create a temporary script to start the server
             const startScript = `
                 cd /home/daytona/testdir && \
-                # Create .env file for environment variables
+                # Create .env file
                 echo 'VITE_HOST=0.0.0.0' > .env && \
                 echo 'VITE_PORT=3000' >> .env && \
-                # Optimize npm installation
-                npm config set fetch-retry-mintimeout 20000 && \
-                npm config set fetch-retry-maxtimeout 120000 && \
-                npm config set fetch-timeout 300000 && \
-                # Install dependencies with optimized settings
-                npm install --no-audit --no-fund --prefer-offline --no-package-lock && \
-                # Start the server in background and save PID
+                # Start the server in background
                 nohup ${startCommand} > dev-server.log 2>&1 & echo $! > server.pid
             `;
             
-            // Execute the script with increased timeout
-            const serverResult = await workspace.process.executeSessionCommand(sessionId, { 
+            await workspace.process.executeSessionCommand(sessionId, { 
                 command: startScript,
-                timeout: 300000  // 5 minutes timeout
+                timeout: 300000
             });
             
-            // Get the process ID from the pid file
-            const pidResult = await workspace.process.executeSessionCommand(sessionId, {
-                command: 'cat /home/daytona/testdir/server.pid'
-            });
-            const pid = pidResult.output.trim();
-            console.log('[WorkspaceDeployer] Development server started with PID:', pid);
-            
-            // Wait for server to start (with multiple checks)
+            // Wait for server to start with improved checks
             console.log('[WorkspaceDeployer] Waiting for server to initialize...');
             let serverReady = false;
             let attempts = 0;
-            const maxAttempts = 12; // Increased attempts for slower systems
+            const maxAttempts = 12;
             
             while (!serverReady && attempts < maxAttempts) {
                 attempts++;
                 console.log(`[WorkspaceDeployer] Checking server status (attempt ${attempts}/${maxAttempts})...`);
                 
-                // Check if process is running using the pid file
+                // Check if process is running
                 const processCheck = await workspace.process.executeSessionCommand(sessionId, {
-                    command: `if [ -f /home/daytona/testdir/server.pid ] && ps -p $(cat /home/daytona/testdir/server.pid) > /dev/null; then echo "running"; else echo "not running"; fi`
+                    command: `if [ -f /home/daytona/testdir/server.pid ] && ps -p $(cat /home/daytona/testdir/server.pid) > /dev/null; then echo "running"; else echo "not running"; fi`,
+                    timeout: 30000
                 });
                 
                 if (processCheck.output.trim() !== 'running') {
-                    console.error('[WorkspaceDeployer] Server process is not running');
                     const logResult = await workspace.process.executeSessionCommand(sessionId, {
-                        command: 'cat /home/daytona/testdir/dev-server.log'
+                        command: 'cat /home/daytona/testdir/dev-server.log',
+                        timeout: 30000
                     });
                     console.error('[WorkspaceDeployer] Server log:', logResult.output);
                     throw new Error('Development server process died');
                 }
                 
-                // Check if server is responding on port 3000
+                // Check if server is responding
                 try {
                     const portCheck = await workspace.process.executeSessionCommand(sessionId, {
                         command: 'curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "not_ready"',
-                        timeout: 5000
+                        timeout: 30000
                     });
                     
-                    const status = portCheck.output.trim();
-                    console.log(`[WorkspaceDeployer] Port check status: ${status}`);
-                    
-                    if (status === '200') {
-                        // Additional check for actual content
-                        const contentCheck = await workspace.process.executeSessionCommand(sessionId, {
-                            command: 'curl -s http://localhost:3000 | grep -q "<html" && echo "has_content" || echo "no_content"',
-                            timeout: 5000
-                        });
-                        
-                        if (contentCheck.output.trim() === 'has_content') {
-                            serverReady = true;
-                            console.log('[WorkspaceDeployer] Server is responding with content on port 3000');
-                            break;
-                        } else {
-                            console.log('[WorkspaceDeployer] Server responded but no content found, checking logs...');
-                            const logCheck = await workspace.process.executeSessionCommand(sessionId, {
-                                command: 'cat /home/daytona/testdir/dev-server.log'
-                            });
-                            console.log('[WorkspaceDeployer] Current server log:', logCheck.output);
-                        }
+                    if (portCheck.output.trim() === '200') {
+                        serverReady = true;
+                        console.log('[WorkspaceDeployer] Server is responding on port 3000');
+                        break;
                     }
                 } catch (error) {
                     console.log('[WorkspaceDeployer] Server not ready yet, waiting...');
                 }
                 
-                // Check server logs for any errors
-                const logCheck = await workspace.process.executeSessionCommand(sessionId, {
-                    command: 'cat /home/daytona/testdir/dev-server.log'
-                });
-                console.log('[WorkspaceDeployer] Current server log:', logCheck.output);
-                
-                // Wait before next attempt
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
             
             if (!serverReady) {
-                console.error('[WorkspaceDeployer] Server failed to start within timeout');
                 const logResult = await workspace.process.executeSessionCommand(sessionId, {
-                    command: 'cat /home/daytona/testdir/dev-server.log'
+                    command: 'cat /home/daytona/testdir/dev-server.log',
+                    timeout: 30000
                 });
                 console.error('[WorkspaceDeployer] Server log:', logResult.output);
                 throw new Error('Development server failed to start within timeout');
             }
             
             console.log('[WorkspaceDeployer] Development server is running and ready');
-
-            // Set up file watching for AI-generated changes
-            console.log('[WorkspaceDeployer] Setting up file watching for AI changes...');
-            const watchScript = `
-                cd /home/daytona/testdir && \
-                # Create a watcher script
-                cat > watch-changes.sh << 'EOL'
-#!/bin/bash
-while true; do
-    if [ -f "dev-server.log" ]; then
-        if grep -q "AI changes detected" "dev-server.log"; then
-            echo "AI changes detected, restarting server..."
-            pkill -f "node.*3000" || true
-            npm run dev -- --port 3000 --host 0.0.0.0 > dev-server.log 2>&1 &
-        fi
-    fi
-    sleep 5
-done
-EOL
-                chmod +x watch-changes.sh && \
-                nohup ./watch-changes.sh > watcher.log 2>&1 &
-            `;
             
-            await workspace.process.executeSessionCommand(sessionId, {
-                command: watchScript,
-                timeout: 10000
-            });
+            // Add workspace to manager
+            workspaceManager.addWorkspace(workspace.id, workspace);
             
-            console.log('[WorkspaceDeployer] File watching setup complete');
+            return true;
         } catch (error) {
             console.error('[WorkspaceDeployer] Error starting development server:', error);
             throw error;
         }
-
-        // Add workspace to manager
-        workspaceManager.addWorkspace(workspace.id, workspace);
-
-        console.log('[WorkspaceDeployer] Deployment process completed successfully');
-        return true;
     } catch (error) {
         console.error('[WorkspaceDeployer] Deployment error:', error);
         if (sessionId) {
