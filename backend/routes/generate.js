@@ -66,29 +66,33 @@ function getProviderFromModel(model) {
 
 // POST /generate
 router.post('/', async (req, res) => {
-  const requestId = Date.now();
-  const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
-  
-  // Check if this exact request is already being processed
-  if (activeRequests.has(requestKey)) {
-    console.log(`[${requestId}] Duplicate request detected, returning existing response`);
-    return res.status(429).json({ error: 'Request already in progress' });
-  }
-  
-  const { prompt, technology, model } = req.body;
-  console.log(`[${requestId}] Received /generate request:`, req.body);
-  
-  if (!prompt || !technology || !model) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  // Mark this request as active
-  activeRequests.set(requestKey, requestId);
-
-  let workspaceInfo = null;
-  let workspace = null;
-
   try {
+    console.log(`[${Date.now()}] Received /generate request:`, req.body);
+    
+    // Set a longer timeout for the response
+    req.setTimeout(300000); // 5 minutes
+    
+    const requestId = Date.now();
+    const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
+    
+    // Check if this exact request is already being processed
+    if (activeRequests.has(requestKey)) {
+      console.log(`[${requestId}] Duplicate request detected, returning existing response`);
+      return res.status(429).json({ error: 'Request already in progress' });
+    }
+    
+    const { prompt, technology, model } = req.body;
+    
+    if (!prompt || !technology || !model) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Mark this request as active
+    activeRequests.set(requestKey, requestId);
+
+    let workspaceInfo = null;
+    let workspace = null;
+
     // Generate code first
     const codeResponse = await generateCode({ prompt, technology, model });
     console.log(`[${requestId}] Raw AI response created`);
@@ -133,9 +137,12 @@ router.post('/', async (req, res) => {
       projectName,
       workspace: workspaceInfo
     });
-  } catch (err) {
-    console.error(`[${requestId}] Error in /generate:`, err);
-    res.status(500).json({ error: err.message || 'Failed to generate code' });
+  } catch (error) {
+    console.error('Generate error:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to generate project',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   } finally {
     // Clean up the request tracking
     activeRequests.delete(requestKey);

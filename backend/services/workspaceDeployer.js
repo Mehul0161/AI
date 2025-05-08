@@ -204,89 +204,20 @@ async function deployToWorkspace(workspace, files, technology) {
                 # Create .env file for environment variables
                 echo 'VITE_HOST=0.0.0.0' > .env && \
                 echo 'VITE_PORT=3000' >> .env && \
-                # Ensure main.jsx has proper React setup
-                cat > main.jsx << 'EOL'
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
-EOL
-                # Ensure index.html has proper root element
-                cat > index.html << 'EOL'
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tetris Game</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/main.jsx"></script>
-  </body>
-</html>
-EOL
-                # Update Vite config with allowed hosts and proper base URL
-                cat > vite.config.js << 'EOL'
-import { defineConfig } from 'vite'
-${technology.toLowerCase().includes('react') ? "import react from '@vitejs/plugin-react'" : 
-  technology.toLowerCase().includes('vue') ? "import vue from '@vitejs/plugin-vue'" : ""}
-
-export default defineConfig({
-  plugins: [${technology.toLowerCase().includes('react') ? 'react()' : 
-    technology.toLowerCase().includes('vue') ? 'vue()' : ''}],
-  base: '/',
-  server: {
-    host: '0.0.0.0',
-    port: 3000,
-    strictPort: true,
-    allowedHosts: [
-      'localhost',
-      '127.0.0.1',
-      '${previewHost}'
-    ],
-    hmr: {
-      clientPort: 443,
-      host: '${previewHost}',
-      protocol: 'wss'
-    },
-    watch: {
-      usePolling: true,
-      interval: 1000
-    },
-    cors: true,
-    headers: {
-      'Access-Control-Allow-Origin': '*'
-    }
-  },
-  build: {
-    sourcemap: true,
-    outDir: 'dist',
-    assetsDir: 'assets',
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
-  }
-})
-EOL
-                # Install the correct plugin based on technology
-                ${technology.toLowerCase().includes('react') ? 'npm install @vitejs/plugin-react --save-dev' : 
-                  technology.toLowerCase().includes('vue') ? 'npm install @vitejs/plugin-vue --save-dev' : ''} && \
+                # Optimize npm installation
+                npm config set fetch-retry-mintimeout 20000 && \
+                npm config set fetch-retry-maxtimeout 120000 && \
+                npm config set fetch-timeout 300000 && \
+                # Install dependencies with optimized settings
+                npm install --no-audit --no-fund --prefer-offline --no-package-lock && \
                 # Start the server in background and save PID
                 nohup ${startCommand} > dev-server.log 2>&1 & echo $! > server.pid
             `;
             
+            // Execute the script with increased timeout
             const serverResult = await workspace.process.executeSessionCommand(sessionId, { 
                 command: startScript,
-                timeout: 30000  // 30 second timeout for starting the process
+                timeout: 300000  // 5 minutes timeout
             });
             
             // Get the process ID from the pid file
@@ -413,7 +344,7 @@ EOL
         console.log('[WorkspaceDeployer] Deployment process completed successfully');
         return true;
     } catch (error) {
-        console.error('[WorkspaceDeployer] Error during deployment:', error);
+        console.error('[WorkspaceDeployer] Deployment error:', error);
         if (sessionId) {
             try {
                 await workspace.process.deleteSession(sessionId);
