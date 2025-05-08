@@ -255,7 +255,7 @@ if (signInForm) {
         throw new Error(data.error || 'Authentication failed');
       }
       
-      if (data.success && data.token) {
+      if (data.token) {
         if (name) {
           await showAlert('Account created successfully! Please login.', 'success', 'Success');
           switchToLoginView();
