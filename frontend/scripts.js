@@ -1,4 +1,6 @@
 // Sidebar functionality
+const baseUrl = 'http://localhost:4000';
+ 
 document.addEventListener('DOMContentLoaded', function() {
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -234,7 +236,7 @@ if (signInForm) {
       const endpoint = name ? '/auth/register' : '/auth/login';
       const body = name ? { name, email, password } : { email, password };
 
-      const res = await fetch(`https://ai-codex-server.vercel.app${endpoint}`, {
+      const res = await fetch( baseUrl + `${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -287,7 +289,7 @@ if (enhanceBtn) enhanceBtn.addEventListener('click', async () => {
   if (spinner) spinner.classList.remove('hidden');
 
   try {
-    const response = await fetch('https://ai-codex-server.vercel.app/enhance', {
+    const response = await fetch(baseUrl + '/enhance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, technology, techContext })
@@ -348,7 +350,7 @@ generateBtn?.addEventListener('click', async function() {
   currentWorkspacePreviewUrl = null;
   
   try {
-    const response = await fetch('https://ai-codex-server.vercel.app/generate', {
+    const response = await fetch(baseUrl + '/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -377,7 +379,7 @@ generateBtn?.addEventListener('click', async function() {
     const token = localStorage.getItem('codexToken');
     if (token) {
       try {
-        const saveResponse = await fetch('https://ai-codex-server.vercel.app/projects', {
+        const saveResponse = await fetch(baseUrl + '/projects', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1016,7 +1018,7 @@ window.sendChatMessage = async function() {
   if (chatTyping) chatTyping.classList.remove('hidden');
   
   try {
-    let endpoint = 'https://ai-codex-server.vercel.app/chat';
+    let endpoint = baseUrl + '/chat';
     let requestBody = {
       message: value,
       history: chatMessages.filter(m => m.role === 'user' || m.role === 'assistant')
@@ -1024,7 +1026,7 @@ window.sendChatMessage = async function() {
 
     // If we're in the editor view, use the code assistant API instead
     if (document.getElementById('editorView').style.display !== 'none') {
-      endpoint = 'https://ai-codex-server.vercel.app/code-assistant';
+      endpoint = baseUrl + '/code-assistant';
       requestBody = {
         message: value,
         files: generatedFiles,
@@ -1353,7 +1355,7 @@ async function loadUserProjects() {
       return;
     }
 
-    const response = await fetch('https://ai-codex-server.vercel.app/projects', {
+    const response = await fetch(baseUrl + '/projects', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -1467,7 +1469,7 @@ async function loadProject(projectId) {
       return;
     }
 
-    const response = await fetch(`https://ai-codex-server.vercel.app/projects/${projectId}`, {
+    const response = await fetch(baseUrl + `/projects/${projectId}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -1532,7 +1534,7 @@ async function deleteProject(projectId) {
     }
 
     console.log('[deleteProject] Sending DELETE request to backend...');
-    const response = await fetch(`https://ai-codex-server.vercel.app/projects/${projectId}`, {
+    const response = await fetch(baseUrl + `/projects/${projectId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
