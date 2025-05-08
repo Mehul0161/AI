@@ -236,11 +236,20 @@ if (signInForm) {
       const endpoint = name ? '/auth/register' : '/auth/login';
       const body = name ? { name, email, password } : { email, password };
 
-      const res = await fetch( baseUrl + `${endpoint}`, {
+      const res = await fetch(baseUrl + `${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
         body: JSON.stringify(body)
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to create user');
+      }
 
       const data = await res.json();
       

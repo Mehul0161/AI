@@ -6,12 +6,26 @@ const jwt = require('jsonwebtoken');
 // Register new user
 router.post('/register', async (req, res) => {
   try {
+    console.log('Register request received:', req.body);
     const { email, password, name } = req.body;
+
+    // Validate required fields
+    if (!email || !password || !name) {
+      console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name });
+      return res.status(400).json({ 
+        success: false,
+        error: 'All fields are required' 
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: 'Email already registered' });
+      console.log('User already exists:', email);
+      return res.status(400).json({ 
+        success: false,
+        error: 'Email already registered' 
+      });
     }
 
     // Create new user
@@ -22,6 +36,7 @@ router.post('/register', async (req, res) => {
     });
 
     await user.save();
+    console.log('User created successfully:', email);
 
     // Generate token
     const token = jwt.sign(
@@ -31,6 +46,7 @@ router.post('/register', async (req, res) => {
     );
 
     res.status(201).json({
+      success: true,
       token,
       user: {
         id: user._id,
@@ -39,7 +55,12 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Error creating user' });
+    console.error('Error in register route:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error creating user',
+      details: error.message 
+    });
   }
 });
 
