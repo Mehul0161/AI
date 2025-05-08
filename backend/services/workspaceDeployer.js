@@ -24,36 +24,31 @@ async function deployToWorkspace(workspace, files, technology) {
         const session = await workspace.process.createSession(sessionId);
         console.log(`[WorkspaceDeployer] Session created successfully with ID: ${sessionId}`);
 
-        // Initialize workspace directory with better error handling
+        // Initialize workspace directory
         console.log('[WorkspaceDeployer] Initializing workspace directory...');
         const initCommands = [
-            'pwd',  // Check current directory
-            'ls -la',  // List directory contents
-            'rm -rf testdir',  // Clean up any existing directory
-            'mkdir -p testdir',  // Create fresh project directory
-            'cd testdir',  // Change to project directory
+            'pwd',
+            'ls -la',
+            'rm -rf testdir',
+            'mkdir -p testdir',
+            'cd testdir'
         ];
-
-        // Add src directory only for non-static projects
-        if (!technology.toLowerCase().includes('static')) {
-            initCommands.push('mkdir -p public src');
-        }
 
         for (const cmd of initCommands) {
             console.log(`[WorkspaceDeployer] Executing command: ${cmd}`);
             const result = await workspace.process.executeSessionCommand(sessionId, { 
                 command: cmd,
-                timeout: 30000  // 30 second timeout for each command
+                timeout: 30000
             });
             console.log(`[WorkspaceDeployer] Command output:`, result.output);
         }
 
-        // Upload files with improved error handling
+        // Upload files using the structure from responseFilter
         console.log('[WorkspaceDeployer] Starting file upload process...');
         for (const file of files) {
-            const cleanPath = file.path.replace(/^[^/]+\//, '');
-            const filePath = `/home/daytona/testdir/${cleanPath}`;
-            console.log(`[WorkspaceDeployer] Processing file: ${filePath}`);
+            // Use the path directly from the responseFilter
+            const targetPath = `/home/daytona/testdir/${file.path}`;
+            console.log(`[WorkspaceDeployer] Processing file: ${targetPath}`);
             
             try {
                 if (!file.content || typeof file.content !== 'string' || file.content.trim() === '') {
@@ -62,7 +57,7 @@ async function deployToWorkspace(workspace, files, technology) {
                 }
 
                 // Create directory with error handling
-                const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+                const dirPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
                 console.log(`[WorkspaceDeployer] Creating directory: ${dirPath}`);
                 await workspace.process.executeSessionCommand(sessionId, { 
                     command: `mkdir -p ${dirPath}`,
@@ -71,14 +66,14 @@ async function deployToWorkspace(workspace, files, technology) {
 
                 // Write file content with proper escaping
                 const escapedContent = file.content.replace(/'/g, "'\\''");
-                const createFileCmd = `echo '${escapedContent}' > ${filePath}`;
+                const createFileCmd = `echo '${escapedContent}' > ${targetPath}`;
                 await workspace.process.executeSessionCommand(sessionId, {
                     command: createFileCmd,
                     timeout: 30000
                 });
 
                 // Verify file content
-                const verifyCmd = `cat ${filePath}`;
+                const verifyCmd = `cat ${targetPath}`;
                 const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
                     command: verifyCmd,
                     timeout: 30000
@@ -88,19 +83,52 @@ async function deployToWorkspace(workspace, files, technology) {
                     throw new Error(`File ${file.path} was created but is empty`);
                 }
 
-                console.log(`[WorkspaceDeployer] Successfully created and verified: ${filePath}`);
+                console.log(`[WorkspaceDeployer] Successfully created and verified: ${targetPath}`);
             } catch (uploadError) {
-                console.error(`[WorkspaceDeployer] Error uploading file ${filePath}:`, uploadError);
+                console.error(`[WorkspaceDeployer] Error uploading file ${targetPath}:`, uploadError);
                 throw uploadError;
             }
         }
 
-        // Move files to root directory with error handling
-        console.log('[WorkspaceDeployer] Moving files to root directory...');
-        await workspace.process.executeSessionCommand(sessionId, {
-            command: 'cd /home/daytona/testdir && find . -maxdepth 1 -type d -not -path "." -not -path "./node_modules" -not -path "./.git" | while read dir; do mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.* . 2>/dev/null || true; rm -rf "$dir"; done',
-            timeout: 60000
+        // Verify the final structure
+        console.log('[WorkspaceDeployer] Verifying final file structure...');
+        const structureCheck = await workspace.process.executeSessionCommand(sessionId, {
+            command: 'cd /home/daytona/testdir && find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | sort',
+            timeout: 30000
         });
+        console.log('[WorkspaceDeployer] Final file structure:', structureCheck.output);
+
+        // Check for critical files
+        const criticalFiles = [
+            'package.json',
+            'vite.config.js',
+            'src/main.jsx',
+            'src/App.jsx',
+            'index.html'
+        ];
+
+        for (const file of criticalFiles) {
+            const checkFile = await workspace.process.executeSessionCommand(sessionId, {
+                command: `cd /home/daytona/testdir && test -f ${file} && echo "Found ${file}" || echo "Missing ${file}"`,
+                timeout: 30000
+            });
+            console.log(`[WorkspaceDeployer] ${checkFile.output.trim()}`);
+        }
+
+        // Check file contents of critical files
+        console.log('[WorkspaceDeployer] Checking critical file contents...');
+        for (const file of criticalFiles) {
+            try {
+                const contentCheck = await workspace.process.executeSessionCommand(sessionId, {
+                    command: `cd /home/daytona/testdir && cat ${file}`,
+                    timeout: 30000
+                });
+                console.log(`[WorkspaceDeployer] Contents of ${file}:`);
+                console.log(contentCheck.output);
+            } catch (error) {
+                console.log(`[WorkspaceDeployer] Could not read ${file}: ${error.message}`);
+            }
+        }
 
         // For static websites, skip dependency installation
         if (technology.toLowerCase().includes('static')) {
@@ -167,11 +195,14 @@ async function deployToWorkspace(workspace, files, technology) {
             // Create a temporary script to start the server
             const startScript = `
                 cd /home/daytona/testdir && \
-                # Create .env file
+                # Create .env file with necessary variables
                 echo 'VITE_HOST=0.0.0.0' > .env && \
                 echo 'VITE_PORT=3000' >> .env && \
-                # Start the server in background
-                nohup ${startCommand} > dev-server.log 2>&1 & echo $! > server.pid
+                echo 'VITE_WS_PROTOCOL=wss' >> .env && \
+                # Ensure proper file permissions
+                chmod -R 755 . && \
+                # Start the server in background with proper environment
+                NODE_ENV=production nohup ${startCommand} > dev-server.log 2>&1 & echo $! > server.pid
             `;
             
             await workspace.process.executeSessionCommand(sessionId, { 
@@ -267,11 +298,11 @@ function getStartCommand(technology) {
     if (tech.includes('next')) {
         return 'npm run dev -- --port 3000 --host 0.0.0.0';
     } else if (tech.includes('react')) {
-        return 'npm run dev -- --port 3000 --host 0.0.0.0';
+        return 'npm run dev -- --host 0.0.0.0 --port 3000 --strictPort';
     } else if (tech.includes('vue')) {
-        return 'npm run dev -- --port 3000 --host 0.0.0.0';
+        return 'npm run dev -- --host 0.0.0.0 --port 3000 --strictPort';
     } else {
-        return 'npm run dev -- --port 3000 --host 0.0.0.0';  // Default to dev for modern projects
+        return 'npm run dev -- --host 0.0.0.0 --port 3000 --strictPort';
     }
 }
 

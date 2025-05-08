@@ -97,9 +97,41 @@ app.use('/projects', projectRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
+  
+  // Ensure we're sending JSON response
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Handle specific error types
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      details: err.message
+    });
+  }
+  
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized',
+      details: err.message
+    });
+  }
+  
+  // Default error response
   res.status(500).json({
     success: false,
-    error: err.message || 'Internal server error'
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// Handle 404 errors
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Not Found',
+    details: `The requested resource ${req.originalUrl} was not found`
   });
 });
 

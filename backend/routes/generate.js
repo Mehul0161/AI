@@ -78,13 +78,24 @@ router.post('/', async (req, res) => {
     // Check if this exact request is already being processed
     if (activeRequests.has(requestKey)) {
       console.log(`[${requestId}] Duplicate request detected, returning existing response`);
-      return res.status(429).json({ error: 'Request already in progress' });
+      return res.status(429).json({ 
+        success: false,
+        error: 'Request already in progress' 
+      });
     }
     
     const { prompt, technology, model } = req.body;
     
     if (!prompt || !technology || !model) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields',
+        details: {
+          prompt: !prompt ? 'Prompt is required' : null,
+          technology: !technology ? 'Technology is required' : null,
+          model: !model ? 'Model is required' : null
+        }
+      });
     }
 
     // Mark this request as active
@@ -97,10 +108,19 @@ router.post('/', async (req, res) => {
       // Generate code first
       console.log(`[${requestId}] Generating code...`);
       const codeResponse = await generateCode({ prompt, technology, model });
+      
+      if (!codeResponse) {
+        throw new Error('No response received from code generation');
+      }
+      
       console.log(`[${requestId}] Raw AI response created`);
       
       const provider = getProviderFromModel(model.toLowerCase());
       let codeText = extractCodeTextFromResponse(codeResponse, provider);
+      
+      if (!codeText) {
+        throw new Error('No code text extracted from response');
+      }
       
       if (provider === 'claude' && Array.isArray(codeText)) {
         codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
@@ -110,16 +130,17 @@ router.post('/', async (req, res) => {
       console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
       
       const { files, projectName } = parseProjectFiles(codeText, provider);
+      
+      if (!files || !Array.isArray(files) || files.length === 0) {
+        throw new Error('No valid files were parsed from the AI response');
+      }
+      
       const processedFiles = files.map(file => ({
         ...file,
         provider,
         model,
         technology
       }));
-      
-      if (!Array.isArray(processedFiles) || processedFiles.length === 0) {
-        throw new Error('No valid files were parsed from the AI response');
-      }
 
       // Create workspace and deploy files if not static
       if (technology !== 'Static') {
@@ -139,21 +160,24 @@ router.post('/', async (req, res) => {
         }
       }
       
-      res.json({ 
+      return res.json({ 
+        success: true,
         files: processedFiles,
         projectName,
         workspace: workspaceInfo
       });
     } catch (error) {
       console.error(`[${requestId}] Generate error:`, error);
-      res.status(500).json({
+      return res.status(500).json({
+        success: false,
         error: error.message || 'Failed to generate project',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   } catch (error) {
     console.error(`[${requestId}] Unexpected error:`, error);
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       error: 'An unexpected error occurred',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
