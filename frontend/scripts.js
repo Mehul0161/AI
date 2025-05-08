@@ -1,5 +1,5 @@
 // Sidebar functionality
-const baseUrl = 'http://localhost:4000';
+const baseUrl = 'https://ai-codex-server.vercel.app';
  
 document.addEventListener('DOMContentLoaded', function() {
   const sidebar = document.getElementById('sidebar');
