@@ -1,6 +1,6 @@
 // responseFilter.js
 
-function parseProjectFiles(response, provider = 'gemini') {
+function parseProjectFiles(response, provider = 'gemini', workspaceResponse = null) {
     let files = [];
     let projectName = 'Project'; // Default name
   
@@ -282,7 +282,7 @@ function parseProjectFiles(response, provider = 'gemini') {
       console.error('[ResponseFilter] No files found in response. Raw response:', response);
       throw new Error('No valid files were parsed from the AI response');
     }
-
+  
     // Log parsed files for debugging
     console.log('[ResponseFilter] Parsed files:');
     files.forEach(file => {
@@ -295,13 +295,13 @@ function parseProjectFiles(response, provider = 'gemini') {
     // After parsing files, verify and fix structure
     const fixedFiles = verifyAndFixFileStructure(files);
     
-    // After fixing structure, inject Vite config
-    const filesWithConfig = injectViteConfig(fixedFiles);
+    // After fixing structure, inject Vite config with workspace response
+    const filesWithConfig = injectViteConfig(fixedFiles, workspaceResponse);
   
     return { files: filesWithConfig, projectName };
-}
+  }
   
-function filterAIResponse(data, technology) {
+  function filterAIResponse(data, technology, workspaceResponse = null) {
     // Validate response structure
     if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
       throw new Error('Invalid response structure from AI service');
@@ -318,7 +318,7 @@ function filterAIResponse(data, technology) {
     }
   
     console.log(`${technology} code generated`);
-    const { files, projectName } = parseProjectFiles(aiResponse);
+    const { files, projectName } = parseProjectFiles(aiResponse, 'gemini', workspaceResponse);
   
     // Validate parsed files
     if (!Array.isArray(files) || files.length === 0) {
@@ -326,11 +326,18 @@ function filterAIResponse(data, technology) {
     }
   
     return { files, projectName };
-}
+  }
   
-function injectViteConfig(files) {
+function injectViteConfig(files, workspaceResponse) {
     // Find or create vite.config.js
     const viteConfigIndex = files.findIndex(file => file.path === 'vite.config.js');
+    
+    // Get the preview URL from the workspace response
+    const previewUrl = workspaceResponse?.previewUrl || '';
+    const previewHost = previewUrl ? new URL(previewUrl).host : 'localhost';
+    
+    console.log('[ResponseFilter] Using preview host:', previewHost);
+    
     const viteConfig = {
         path: 'vite.config.js',
         content: `import { defineConfig } from 'vite'
@@ -339,28 +346,23 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 3000,
     strictPort: true,
-    hmr: {
-      protocol: 'wss',
-      host: 'localhost',
-      port: 443,
-      clientPort: 443
-    },
-    watch: {
-      usePolling: true
+    cors: {
+      origin: '*'
     },
     allowedHosts: [
-      'all',
       'localhost',
-      '*.daytona.work',
-      '*.daytona.io',
-      '*.daytona.dev',
-      /^3000-.*\\.daytona\\.work$/,
-      /^3000-.*\\.daytona\\.io$/,
-      /^3000-.*\\.daytona\\.dev$/
+      '127.0.0.1',
+      '${previewHost}',
+      'codex-v4-backend.vercel.app',
+      'latest-frontend.vercel.app'
     ],
+    hmr: {
+      clientPort: 443,
+      host: '${previewHost}'
+    },
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -371,8 +373,15 @@ export default defineConfig({
   },
   preview: {
     port: 3000,
-    host: true,
-    strictPort: true
+    host: '0.0.0.0',
+    strictPort: true,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '${previewHost}',
+      'codex-v4-backend.vercel.app',
+      'latest-frontend.vercel.app'
+    ]
   }
 })`
     };
@@ -442,4 +451,4 @@ function verifyAndFixFileStructure(files) {
     return fixedFiles;
 }
   
-module.exports = { filterAIResponse, parseProjectFiles }; 
+  module.exports = { filterAIResponse, parseProjectFiles }; 

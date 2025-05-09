@@ -36,11 +36,11 @@ const connectDB = async () => {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-    console.log('Successfully connected to MongoDB.');
-    console.log('Database:', mongoose.connection.name);
-    console.log('Host:', mongoose.connection.host);
+  console.log('Successfully connected to MongoDB.');
+  console.log('Database:', mongoose.connection.name);
+  console.log('Host:', mongoose.connection.host);
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+  console.error('MongoDB connection error:', err);
     // Don't exit process in serverless environment
   }
 };
@@ -140,8 +140,8 @@ module.exports = app;
 
 // Start server only if not in serverless environment
 if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+}); 
 } 

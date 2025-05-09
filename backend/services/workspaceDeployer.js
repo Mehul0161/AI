@@ -3,6 +3,7 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 const { Daytona } = require('@daytonaio/sdk');
 const workspaceManager = require('./workspaceManager');
+const viteConfigManager = require('./viteConfigManager');
 
 /**
  * Deploys generated files to a workspace and starts the development server
@@ -19,10 +20,14 @@ async function deployToWorkspace(workspace, files, technology) {
     const sessionId = `deploy-${Date.now()}`;
     
     try {
-        // Create deployment session
+        // Create deployment session first
         console.log('[WorkspaceDeployer] Creating deployment session...');
         const session = await workspace.process.createSession(sessionId);
         console.log(`[WorkspaceDeployer] Session created successfully with ID: ${sessionId}`);
+
+        // Get workspace info for the correct host
+        const workspaceInfo = await workspace.info();
+        const previewHost = `3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
 
         // Initialize workspace directory
         console.log('[WorkspaceDeployer] Initializing workspace directory...');
@@ -43,9 +48,21 @@ async function deployToWorkspace(workspace, files, technology) {
             console.log(`[WorkspaceDeployer] Command output:`, result.output);
         }
 
+        // Create Vite config if it's a Vite-based project
+        if (technology.toLowerCase().includes('vite') || technology.toLowerCase().includes('react')) {
+            console.log('[WorkspaceDeployer] Creating Vite configuration...');
+            await viteConfigManager.createViteConfig(workspace, workspaceInfo.id, workspaceInfo.nodeDomain, sessionId);
+        }
+
         // Upload files using the structure from responseFilter
         console.log('[WorkspaceDeployer] Starting file upload process...');
         for (const file of files) {
+            // Skip vite.config.js as it's handled separately
+            if (file.path === 'vite.config.js') {
+                console.log('[WorkspaceDeployer] Skipping vite.config.js as it will be created separately');
+                continue;
+            }
+
             // Use the path directly from the responseFilter
             const targetPath = `/home/daytona/testdir/${file.path}`;
             console.log(`[WorkspaceDeployer] Processing file: ${targetPath}`);
@@ -71,18 +88,18 @@ async function deployToWorkspace(workspace, files, technology) {
                     command: createFileCmd,
                     timeout: 30000
                 });
-
+                
                 // Verify file content
                 const verifyCmd = `cat ${targetPath}`;
                 const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
                     command: verifyCmd,
                     timeout: 30000
                 });
-
+                
                 if (!verifyResult.output || verifyResult.output.trim() === '') {
                     throw new Error(`File ${file.path} was created but is empty`);
                 }
-
+                
                 console.log(`[WorkspaceDeployer] Successfully created and verified: ${targetPath}`);
             } catch (uploadError) {
                 console.error(`[WorkspaceDeployer] Error uploading file ${targetPath}:`, uploadError);
@@ -111,7 +128,7 @@ async function deployToWorkspace(workspace, files, technology) {
             const checkFile = await workspace.process.executeSessionCommand(sessionId, {
                 command: `cd /home/daytona/testdir && test -f ${file} && echo "Found ${file}" || echo "Missing ${file}"`,
                 timeout: 30000
-            });
+        });
             console.log(`[WorkspaceDeployer] ${checkFile.output.trim()}`);
         }
 
@@ -122,7 +139,7 @@ async function deployToWorkspace(workspace, files, technology) {
                 const contentCheck = await workspace.process.executeSessionCommand(sessionId, {
                     command: `cd /home/daytona/testdir && cat ${file}`,
                     timeout: 30000
-                });
+        });
                 console.log(`[WorkspaceDeployer] Contents of ${file}:`);
                 console.log(contentCheck.output);
             } catch (error) {
@@ -182,10 +199,6 @@ async function deployToWorkspace(workspace, files, technology) {
         const startCommand = getStartCommand(technology);
         
         try {
-            // Get workspace info for the correct host
-            const workspaceInfo = await workspace.info();
-            const previewHost = `3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
-            
             // Kill any existing processes on port 3000
             await workspace.process.executeSessionCommand(sessionId, {
                 command: 'pkill -f "node.*3000" || true',
@@ -243,9 +256,9 @@ async function deployToWorkspace(workspace, files, technology) {
                     });
                     
                     if (portCheck.output.trim() === '200') {
-                        serverReady = true;
+                            serverReady = true;
                         console.log('[WorkspaceDeployer] Server is responding on port 3000');
-                        break;
+                            break;
                     }
                 } catch (error) {
                     console.log('[WorkspaceDeployer] Server not ready yet, waiting...');
@@ -264,7 +277,7 @@ async function deployToWorkspace(workspace, files, technology) {
             }
             
             console.log('[WorkspaceDeployer] Development server is running and ready');
-            
+
             // Add workspace to manager
             workspaceManager.addWorkspace(workspace.id, workspace);
             

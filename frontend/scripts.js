@@ -333,6 +333,40 @@ function isUserLoggedIn() {
   return localStorage.getItem('codexToken') !== null;
 }
 
+// Add this function to update vite.config.js with preview URL
+async function updateViteConfigWithPreviewUrl(previewUrl) {
+  try {
+    // Extract host from preview URL
+    const previewHost = new URL(previewUrl).host;
+    
+    // Find vite.config.js in generatedFiles
+    const viteConfigFile = generatedFiles.find(f => f.path === 'vite.config.js');
+    if (!viteConfigFile) {
+      console.error('vite.config.js not found in generated files');
+      return;
+    }
+
+    // Update the allowedHosts array to include the preview host
+    let configContent = viteConfigFile.content;
+    const allowedHostsMatch = configContent.match(/allowedHosts:\s*\[([\s\S]*?)\]/);
+    
+    if (allowedHostsMatch) {
+      const currentHosts = allowedHostsMatch[1].split(',').map(h => h.trim().replace(/['"]/g, ''));
+      if (!currentHosts.includes(previewHost)) {
+        const newHosts = [...currentHosts, `'${previewHost}'`];
+        configContent = configContent.replace(
+          allowedHostsMatch[0],
+          `allowedHosts: [${newHosts.join(', ')}]`
+        );
+        viteConfigFile.content = configContent;
+        console.log('Updated vite.config.js with preview host:', previewHost);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating vite.config.js:', error);
+  }
+}
+
 // Update the generate button click handler
 generateBtn?.addEventListener('click', async function() {
   if (!isUserLoggedIn()) {
@@ -385,6 +419,8 @@ generateBtn?.addEventListener('click', async function() {
     // Store the preview URL for non-static projects
     if (tech !== 'static' && data.workspace?.previewUrl) {
       currentWorkspacePreviewUrl = data.workspace.previewUrl;
+      // Update vite.config.js with the preview URL host
+      await updateViteConfigWithPreviewUrl(currentWorkspacePreviewUrl);
     }
     
     // Save the project to the database
@@ -1324,7 +1360,7 @@ if (editorSidebarBtn && typeof openSidebarBtn !== 'undefined') {
 }
 
 // Add this function to handle project modal
-function openProjectsModal() {
+window.openProjectsModal = function() {
   // Check if user is logged in
   const token = localStorage.getItem('codexToken');
   if (!token) {
@@ -1344,7 +1380,10 @@ function openProjectsModal() {
 
 // Add this after the other sidebar action functions
 window.closeProjectsModal = function() {
-  document.getElementById('projectsModal').classList.add('hidden');
+  const projectsModal = document.getElementById('projectsModal');
+  if (projectsModal) {
+    projectsModal.classList.add('hidden');
+  }
 };
 
 // Add this function to load user projects
@@ -1450,30 +1489,27 @@ async function loadUserProjects() {
   }
 }
 
-// Helper function to get technology icon
+// Add function to get technology icon
 function getTechnologyIcon(technology) {
   const icons = {
-    'React': `<svg class="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    'React': `<svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
     </svg>`,
-    'Next': `<svg class="w-6 h-6 text-black dark:text-white" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    'Vue': `<svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
     </svg>`,
-    'Vue': `<svg class="w-6 h-6 text-green-500" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    'Angular': `<svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
     </svg>`,
-    'Static': `<svg class="w-6 h-6 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
+    'default': `<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
     </svg>`
   };
-  
-  return icons[technology] || `<svg class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0 2c-4.411 0-8 3.589-8 8s3.589 8 8 8 8-3.589 8-8-3.589-8-8-8zm0 2c3.309 0 6 2.691 6 6s-2.691 6-6 6-6-2.691-6-6 2.691-6 6-6z"/>
-  </svg>`;
+  return icons[technology] || icons.default;
 }
 
 // Add function to load a specific project
-async function loadProject(projectId) {
+window.loadProject = async function(projectId) {
   try {
     const token = localStorage.getItem('codexToken');
     if (!token) {
@@ -1523,18 +1559,13 @@ async function loadProject(projectId) {
 }
 
 // Add function to delete a project
-async function deleteProject(projectId) {
+window.deleteProject = async function(projectId) {
   try {
-    console.log('[deleteProject] Called for projectId:', projectId);
     const confirmed = await showAlert('Are you sure you want to delete this project?', 'warning', 'Confirm Delete');
-    if (!confirmed) {
-      console.log('[deleteProject] User cancelled deletion.');
-      return;
-    }
+    if (!confirmed) return;
 
     const token = localStorage.getItem('codexToken');
     if (!token) {
-      console.log('[deleteProject] No token found.');
       await showAlert('Please sign in to delete projects', 'warning', 'Authentication Required');
       return;
     }
@@ -1545,7 +1576,6 @@ async function deleteProject(projectId) {
       projectsList.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div><p class="text-gray-400 mt-2">Deleting project...</p></div>';
     }
 
-    console.log('[deleteProject] Sending DELETE request to backend...');
     const response = await fetch(baseUrl + `/projects/${projectId}`, {
       method: 'DELETE',
       headers: {
@@ -1554,12 +1584,9 @@ async function deleteProject(projectId) {
       }
     });
 
-    console.log('[deleteProject] Response status:', response.status);
     const data = await response.json();
-    console.log('[deleteProject] Response data:', data);
 
     if (!response.ok) {
-      console.error('[deleteProject] Error:', data.error || 'Failed to delete project');
       throw new Error(data.error || 'Failed to delete project');
     }
 
@@ -1567,16 +1594,14 @@ async function deleteProject(projectId) {
     await showAlert('Project deleted successfully', 'success', 'Success');
     
     // Reload projects list
-    console.log('[deleteProject] Reloading projects list...');
     await loadUserProjects();
     
     // If we're currently viewing the deleted project, switch back to generator view
     if (document.getElementById('editorView').style.display !== 'none') {
-      console.log('[deleteProject] Switching to generator view.');
       switchToGeneratorView();
     }
   } catch (error) {
-    console.error('[deleteProject] Exception:', error);
+    console.error('Error deleting project:', error);
     await showAlert('Error deleting project: ' + error.message, 'error', 'Error');
     // Reload projects list even if there was an error
     await loadUserProjects();

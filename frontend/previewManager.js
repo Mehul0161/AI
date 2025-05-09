@@ -26,23 +26,20 @@ class PreviewManager {
 
     async checkPreviewAvailability() {
         if (this.retryCount >= this.maxRetries) {
-            console.log('[PreviewManager] Max retries reached, showing error');
-            this.handlePreviewError('Preview server taking too long to start. Please try refreshing in a few moments.');
+            this.handlePreviewError('Preview failed to start within timeout period');
             return;
         }
 
         try {
-            console.log(`[PreviewManager] Checking preview availability (attempt ${this.retryCount + 1}/${this.maxRetries})`);
-            const response = await fetch(this.previewUrl);
-            
-            if (response.ok) {
-                console.log('[PreviewManager] Preview server is ready');
-                this.handlePreviewReady();
-            } else {
-                throw new Error(`Server returned ${response.status}`);
-            }
+            const response = await fetch(this.previewUrl, {
+                method: 'HEAD',
+                mode: 'no-cors',
+                cache: 'no-cache'
+            });
+
+            this.handlePreviewReady();
         } catch (error) {
-            console.log(`[PreviewManager] Preview not ready yet: ${error.message}`);
+            console.log(`[PreviewManager] Preview not ready yet (attempt ${this.retryCount + 1}/${this.maxRetries})`);
             this.retryCount++;
             setTimeout(() => this.checkPreviewAvailability(), this.retryInterval);
         }
@@ -55,6 +52,8 @@ class PreviewManager {
         const previewError = document.getElementById('previewError');
 
         if (previewFrame) {
+            // Configure iframe for Vite preview
+            previewFrame.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals';
             previewFrame.src = this.previewUrl;
             previewFrame.style.display = 'block';
         }
