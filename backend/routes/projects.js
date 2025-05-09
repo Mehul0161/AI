@@ -3,6 +3,9 @@ const router = express.Router();
 const Project = require('../models/Project');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const path = require('path');
+const fs = require('fs');
+const archiver = require('archiver');
 
 // Get all projects for a user
 router.get('/', auth, async (req, res) => {
@@ -103,6 +106,46 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Delete project error:', error);
     res.status(500).json({ error: 'Error deleting project: ' + error.message });
+  }
+});
+
+// Download project files
+router.get('/:projectId/download', auth, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    // Find the project in the database
+    const project = await Project.findOne({
+      _id: projectId,
+      user: req.user._id
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Create a zip archive
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=project-${projectId}.zip`);
+
+    // Pipe archive data to response
+    archive.pipe(res);
+
+    // Add each file to the archive
+    project.files.forEach(file => {
+      archive.append(file.content, { name: file.path });
+    });
+
+    // Finalize the archive
+    await archive.finalize();
+  } catch (error) {
+    console.error('Error downloading project:', error);
+    res.status(500).json({ error: 'Failed to download project' });
   }
 });
 

@@ -78,7 +78,8 @@ class ViteConfigManager {
                 }
             },
             define: {
-                'process.env.VITE_PREVIEW_URL': JSON.stringify(previewUrl)
+                'process.env.VITE_PREVIEW_URL': JSON.stringify(previewUrl),
+                'process.env.NODE_ENV': JSON.stringify('development')
             },
             optimizeDeps: {
                 exclude: ['@vite/client']

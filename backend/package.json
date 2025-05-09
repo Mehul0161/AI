@@ -14,6 +14,7 @@
     "@daytonaio/sdk": "^0.14.0",
     "@google/genai": "^0.12.0",
     "@vercel/node": "^3.0.0",
+    "archiver": "^5.3.2",
     "axios": "^1.9.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -31,4 +32,3 @@
     "node": ">=18.x"
   }
 }
- 

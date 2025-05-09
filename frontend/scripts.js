@@ -419,7 +419,6 @@ generateBtn?.addEventListener('click', async function() {
     // Store the preview URL for non-static projects
     if (tech !== 'static' && data.workspace?.previewUrl) {
       currentWorkspacePreviewUrl = data.workspace.previewUrl;
-      // Update vite.config.js with the preview URL host
       await updateViteConfigWithPreviewUrl(currentWorkspacePreviewUrl);
     }
     
@@ -443,6 +442,10 @@ generateBtn?.addEventListener('click', async function() {
         const saveData = await saveResponse.json();
         if (saveData.error) {
           console.error('Error saving project:', saveData.error);
+        } else {
+          // Set the current project ID after successful save
+          window.currentProjectId = saveData._id;
+          console.log('Project saved with ID:', saveData._id);
         }
       } catch (error) {
         console.error('Error saving project:', error);
@@ -1533,6 +1536,7 @@ window.loadProject = async function(projectId) {
     generatedFiles = data.files;
     projectName = data.name;
     selectedFilePath = generatedFiles[0]?.path || null;
+    window.currentProjectId = projectId; // Set the current project ID
 
     // Update UI
     const projectNameEls = document.querySelectorAll('.project-name');

@@ -253,6 +253,13 @@
             </svg>
             <span id="togglePreviewText">Preview</span>
           </button>
+          <!-- Download Project Button -->
+          <button id="downloadProjectBtn" class="flex items-center gap-2 px-3 py-1 rounded bg-[#23272e] text-gray-300 hover:bg-blue-600 hover:text-white transition font-semibold focus:outline-none" onclick="downloadProject()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Download</span>
+          </button>
           <button id="editorSidebarBtn" onclick="openSidebarBtn.click()" class="ml-4 w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg text-lg transition hover:scale-105 focus:outline-none">
             <span id="editorUserInitial">M</span>
           </button>
@@ -460,5 +467,97 @@
   </style>
   <script src="./scripts.js"></script>
   <script src="./previewManager.js" type="module"></script>
+  <script>
+    // Function to download project files
+    async function downloadProject() {
+      try {
+        // Get the current project ID from the editor state
+        const projectId = window.currentProjectId;
+        
+        // Validate project ID
+        if (!projectId) {
+          throw new Error('No project selected. Please open a project first.');
+        }
+        
+        // Show loading state
+        const downloadBtn = document.getElementById('downloadProjectBtn');
+        const originalText = downloadBtn.innerHTML;
+        downloadBtn.innerHTML = `
+          <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Preparing...</span>
+        `;
+        downloadBtn.disabled = true;
+
+        // Get auth token
+        const token = localStorage.getItem('codexToken');
+        if (!token) {
+          throw new Error('Please sign in to download projects');
+        }
+
+        // Fetch project files from the backend
+        const response = await fetch(`${baseUrl}/projects/${projectId}/download`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to download project');
+        }
+
+        // Get the blob from the response
+        const blob = await response.blob();
+        
+        // Create a download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `project-${projectId}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Error downloading project:', error);
+        // Show error in a more user-friendly way
+        const alertModal = document.getElementById('customAlert');
+        const alertTitle = document.getElementById('alertTitle');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertIcon = document.getElementById('alertIcon');
+        
+        alertTitle.textContent = 'Download Failed';
+        alertMessage.textContent = error.message || 'Failed to download project. Please try again.';
+        alertIcon.innerHTML = `
+          <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        `;
+        alertModal.classList.remove('hidden');
+        
+        // Add click handler for the OK button
+        const confirmBtn = document.getElementById('alertConfirmBtn');
+        confirmBtn.onclick = () => {
+          alertModal.classList.add('hidden');
+        };
+      } finally {
+        // Reset button state
+        const downloadBtn = document.getElementById('downloadProjectBtn');
+        downloadBtn.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Download</span>
+        `;
+        downloadBtn.disabled = false;
+      }
+    }
+  </script>
 </body>
 </html> 
