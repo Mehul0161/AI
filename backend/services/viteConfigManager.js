@@ -5,17 +5,25 @@ class ViteConfigManager {
     constructor() {
         this.defaultConfig = {
             server: {
-                host: '0.0.0.0',
+                host: true,
                 port: 3000,
                 strictPort: true,
-                hmr: {
-                    clientPort: 443,
-                    protocol: 'wss'
+                hmr: false,
+                watch: {
+                    usePolling: false
+                },
+                proxy: {
+                    '/api': {
+                        target: 'http://localhost:3000',
+                        changeOrigin: true,
+                        secure: false
+                    }
                 }
             },
             preview: {
                 port: 3000,
-                strictPort: true
+                strictPort: true,
+                host: true
             }
         };
     }
@@ -35,6 +43,7 @@ class ViteConfigManager {
             'localhost',
             workspaceDomain,
             previewHost,
+            previewUrl,
             'codex-v4-backend.vercel.app',
             'latest-frontend.vercel.app'
         ];
@@ -44,13 +53,11 @@ class ViteConfigManager {
             server: {
                 ...this.defaultConfig.server,
                 cors: {
-                    origin: '*'
+                    origin: '*',
+                    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                    allowedHeaders: ['Content-Type', 'Authorization']
                 },
                 allowedHosts,
-                hmr: {
-                    ...this.defaultConfig.server.hmr,
-                    host: workspaceDomain
-                },
                 headers: {
                     'Access-Control-Allow-Origin': '*',
                     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -61,10 +68,28 @@ class ViteConfigManager {
             },
             preview: {
                 ...this.defaultConfig.preview,
-                allowedHosts
+                allowedHosts,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                    'X-Frame-Options': 'ALLOWALL',
+                    'Content-Security-Policy': "frame-ancestors *"
+                }
             },
             define: {
                 'process.env.VITE_PREVIEW_URL': JSON.stringify(previewUrl)
+            },
+            optimizeDeps: {
+                exclude: ['@vite/client']
+            },
+            build: {
+                sourcemap: true,
+                rollupOptions: {
+                    output: {
+                        manualChunks: undefined
+                    }
+                }
             }
         };
     }
