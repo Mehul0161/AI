@@ -129,7 +129,7 @@ router.post('/', async (req, res) => {
     console.log(`[${requestId}] Provider:`, provider);
     console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
     
-    const { files, projectName } = parseProjectFiles(codeText, provider);
+    const { files, projectName } = parseProjectFiles(codeText, provider, null, technology);
       
       if (!files || !Array.isArray(files) || files.length === 0) {
         throw new Error('No valid files were parsed from the AI response');

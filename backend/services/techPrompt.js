@@ -8,11 +8,11 @@ make the project in under 8000 tokens.
 Project Name: [your-generated-project-name]
 
 For each file in the project:
-
-
 first create a folder structure for the project.
 Start with File: [filepath] on a new line.
-Include the complete, valid code for that file.
+dont code for the backend.
+dont add any api calls and fetch calls.
+always use cdn for all the libraries and dependencies.
 Include all necessary and correct imports and dependencies.
 Use Tailwind CSS CDN for styling
 use correct names for the files and folders.
@@ -20,13 +20,11 @@ add animations and transitions where required.
 
 For component files:
    - Always include proper React imports
-   - Use proper hooks and context usage
+   - Use and import proper hooks and context usage
    - Implement state management where required
    - Ensure proper error handling and user feedback
    - Make sure to use the correct file paths
-   - Make sure to use the correct file names
-   - Make sure to use the correct file extensions
-   - Make sure to use the correct file types
+ 
 
 
 Project Requirements:
@@ -48,7 +46,7 @@ Implement state management where required (React Context API preferred for small
 Ensure responsive design using Tailwind css.
 
 Include essential files:
-package.json with all dependencies.
+package.json with all dependencies and plugins like vitejs/plugin-react that are required for the project.
 README.md with clear setup instructions.
 index.html and index.css are essential
 is has to be a single page application. no need to create multiple pages.
@@ -169,7 +167,7 @@ Project Requirements:
 
 Include essential files:
 
-- package.json with all dependencies.
+- package.json with all dependencies and plugins like vitejs/plugin-vue.
 - README.md with clear setup instructions and expected structure.
 - index.html and main.css for global styles.
 - main.js or main.ts as the app entry point.
@@ -194,7 +192,7 @@ Example folder structure:
 │   │   │   ├── index.js
 │   │   ├── App.vue           # Root Vue component
 │   │   └── main.js           # App entry point
-│   ├── index.html            # Main HTML file
+│   ├── index.html            # Main HTML file(must be in the root directory)
 │   ├── vite.config.js        # Vite configuration
 │   ├── package.json          # Project dependencies
 │   ├── README.md             # Setup instructions

@@ -1,6 +1,6 @@
-// responseFilter.js
+ // responseFilter.js
 
-function parseProjectFiles(response, provider = 'gemini', workspaceResponse = null) {
+function parseProjectFiles(response, provider = 'gemini', workspaceResponse = null, technology = 'react') {
     let files = [];
     let projectName = 'Project'; // Default name
   
@@ -293,10 +293,10 @@ function parseProjectFiles(response, provider = 'gemini', workspaceResponse = nu
     });
   
     // After parsing files, verify and fix structure
-    const fixedFiles = verifyAndFixFileStructure(files);
+    const fixedFiles = verifyAndFixFileStructure(files, technology);
     
     // After fixing structure, inject Vite config with workspace response
-    const filesWithConfig = injectViteConfig(fixedFiles, workspaceResponse);
+    const filesWithConfig = injectViteConfig(fixedFiles, workspaceResponse, technology);
   
     return { files: filesWithConfig, projectName };
   }
@@ -317,8 +317,11 @@ function parseProjectFiles(response, provider = 'gemini', workspaceResponse = nu
       throw new Error('Invalid response text from AI service');
     }
   
-    console.log(`${technology} code generated`);
-    const { files, projectName } = parseProjectFiles(aiResponse, 'gemini', workspaceResponse);
+    // Convert technology to lowercase for consistency
+    const normalizedTechnology = technology.toLowerCase();
+    console.log(`${normalizedTechnology} code generated`);
+    
+    const { files, projectName } = parseProjectFiles(aiResponse, 'gemini', workspaceResponse, normalizedTechnology);
   
     // Validate parsed files
     if (!Array.isArray(files) || files.length === 0) {
@@ -328,19 +331,111 @@ function parseProjectFiles(response, provider = 'gemini', workspaceResponse = nu
     return { files, projectName };
   }
   
-function injectViteConfig(files, workspaceResponse) {
-    // Find or create vite.config.js
-    const viteConfigIndex = files.findIndex(file => file.path === 'vite.config.js');
-    
+function injectViteConfig(files, workspaceResponse, technology = 'react') {
+    // Skip config injection for non-Vite technologies
+    if (['angular', 'static'].includes(technology.toLowerCase())) {
+        return files;
+    }
+
     // Get the preview URL from the workspace response
     const previewUrl = workspaceResponse?.previewUrl || '';
     const previewHost = previewUrl ? new URL(previewUrl).host : 'localhost';
     
     console.log('[ResponseFilter] Using preview host:', previewHost);
     
-    const viteConfig = {
-        path: 'vite.config.js',
-        content: `import { defineConfig } from 'vite'
+    let configFile;
+    let configContent;
+
+    switch(technology.toLowerCase()) {
+        case 'next':
+            configFile = 'next.config.js';
+            configContent = `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'ALLOWALL',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors *",
+          },
+        ],
+      },
+    ];
+  },
+}
+
+module.exports = nextConfig`;
+            break;
+        case 'vue':
+            configFile = 'vite.config.js';
+            configContent = `import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    strictPort: true,
+    cors: {
+      origin: '*'
+    },
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '${previewHost}',
+      'codex-v4-backend.vercel.app',
+      'latest-frontend.vercel.app'
+    ],
+    hmr: {
+      clientPort: 443,
+      host: '${previewHost}'
+    },
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'X-Frame-Options': 'ALLOWALL',
+      'Content-Security-Policy': "frame-ancestors *"
+    }
+  },
+  preview: {
+    port: 3000,
+    host: '0.0.0.0',
+    strictPort: true,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '${previewHost}',
+      'codex-v4-backend.vercel.app',
+      'latest-frontend.vercel.app'
+    ]
+  }
+})`;
+            break;
+        default: // react
+            configFile = 'vite.config.js';
+            configContent = `import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -383,32 +478,89 @@ export default defineConfig({
       'latest-frontend.vercel.app'
     ]
   }
-})`
-    };
+})`;
+    }
 
-    if (viteConfigIndex === -1) {
-        files.push(viteConfig);
+    // Find or create config file
+    const configIndex = files.findIndex(file => file.path === configFile);
+    
+    if (configIndex === -1) {
+        files.push({
+            path: configFile,
+            content: configContent
+        });
     } else {
-        files[viteConfigIndex] = viteConfig;
+        files[configIndex] = {
+            path: configFile,
+            content: configContent
+        };
     }
 
     return files;
 }
 
-function verifyAndFixFileStructure(files) {
-    console.log('[ResponseFilter] Verifying file structure...');
-    
-    // Expected structure for a Vite React project
-    const expectedStructure = {
-        'package.json': true,
-        'vite.config.js': true,
-        'index.html': true,
-        'src/main.jsx': true,
-        'src/App.jsx': true,
-        'src/index.css': true,
-        'public/': true
-    };
+// Technology-specific file structure definitions
+const TECHNOLOGY_STRUCTURES = {
+  'next': {
+    criticalFiles: [
+      'package.json',
+      'app/layout.tsx',
+      'app/page.tsx'
+    ],
+    optionalFiles: [
+      'app/globals.css',
+      'tailwind.config.js',
+      '.eslintrc.js',
+      '.prettierrc',
+      '.gitignore'
+    ]
+  },
+  'react': {
+    criticalFiles: [
+      'package.json',
+      'index.html',
+      'src/main.jsx',
+      'src/App.jsx'
+    ],
+    optionalFiles: [
+      'src/index.css',
+      'vite.config.js',
+      'public/'
+    ]
+  },
+  'vue': {
+    criticalFiles: [
+      'package.json',
+      'index.html',
+      'src/main.js',
+      'src/App.vue'
+    ],
+    optionalFiles: [
+      'src/assets/',
+      'src/components/',
+      'vite.config.js'
+    ]
+  },
+  'static': {
+    criticalFiles: [
+      'index.html',
+      'styles.css',
+      'scripts.js'
+    ],
+    optionalFiles: [
+      'assets/',
+      'images/',
+      'README.md'
+    ]
+  }
+};
 
+function verifyAndFixFileStructure(files, technology = 'react') {
+    console.log('[ResponseFilter] Verifying file structure for technology:', technology);
+    
+    // Get the expected structure for the technology
+    const techStructure = TECHNOLOGY_STRUCTURES[technology.toLowerCase()] || TECHNOLOGY_STRUCTURES['react'];
+    
     // Check if all required files exist
     const existingFiles = new Set(files.map(f => f.path));
     console.log('[ResponseFilter] Existing files:', Array.from(existingFiles));
@@ -420,20 +572,68 @@ function verifyAndFixFileStructure(files) {
         // Remove any leading slashes or unnecessary prefixes
         fixedPath = fixedPath.replace(/^[\/\\]+/, '');
         
-        // Ensure src files are in the correct location
-        if (fixedPath.includes('src/') || fixedPath.includes('src\\')) {
-            fixedPath = fixedPath.replace(/^.*?[\/\\]src[\/\\]/, 'src/');
-        }
+        // Split path into parts
+        const pathParts = fixedPath.split(/[\/\\]/);
         
-        // Ensure public files are in the correct location
-        if (fixedPath.includes('public/') || fixedPath.includes('public\\')) {
-            fixedPath = fixedPath.replace(/^.*?[\/\\]public[\/\\]/, 'public/');
+        // Check if first part is a project name directory
+        if (pathParts.length > 1) {
+            const firstPart = pathParts[0];
+            // If first part looks like a project name (contains - or _ or is camelCase)
+            if (firstPart.includes('-') || firstPart.includes('_') || /[a-z][A-Z]/.test(firstPart)) {
+                console.log(`[ResponseFilter] Removing project name directory: ${firstPart}`);
+                // Remove the project name directory
+                pathParts.shift();
+                fixedPath = pathParts.join('/');
+            }
+        }
+
+        // Technology-specific path fixes
+        switch(technology.toLowerCase()) {
+            case 'next':
+                // Ensure app directory files are in the correct location
+                if (fixedPath.includes('app/') || fixedPath.includes('app\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]app[\/\\]/, 'app/');
+                }
+                break;
+            case 'react':
+                // Ensure src files are in the correct location
+                if (fixedPath.includes('src/') || fixedPath.includes('src\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]src[\/\\]/, 'src/');
+                }
+                // Ensure public files are in the correct location
+                if (fixedPath.includes('public/') || fixedPath.includes('public\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]public[\/\\]/, 'public/');
+                }
+                break;
+            case 'vue':
+                // Ensure src files are in the correct location
+                if (fixedPath.includes('src/') || fixedPath.includes('src\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]src[\/\\]/, 'src/');
+                }
+                break;
+            case 'static':
+                // Ensure assets directory files are in the correct location
+                if (fixedPath.includes('assets/') || fixedPath.includes('assets\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]assets[\/\\]/, 'assets/');
+                }
+                // Ensure images directory files are in the correct location
+                if (fixedPath.includes('images/') || fixedPath.includes('images\\')) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]images[\/\\]/, 'images/');
+                }
+                // Ensure root files are in the correct location
+                if (['index.html', 'styles.css', 'scripts.js'].includes(fixedPath)) {
+                    fixedPath = fixedPath.replace(/^.*?[\/\\]/, '');
+                }
+                break;
         }
 
         // Ensure root files are in the correct location
-        if (['package.json', 'vite.config.js', 'index.html'].includes(fixedPath)) {
+        if (['package.json', 'vite.config.js', 'index.html', 'angular.json', 'tsconfig.json'].includes(fixedPath)) {
             fixedPath = fixedPath.replace(/^.*?[\/\\]/, '');
         }
+
+        // Normalize path separators to forward slashes
+        fixedPath = fixedPath.replace(/\\/g, '/');
 
         console.log(`[ResponseFilter] Fixed path: ${file.path} -> ${fixedPath}`);
         return {
@@ -442,6 +642,16 @@ function verifyAndFixFileStructure(files) {
         };
     });
 
+    // Verify critical files exist
+    const missingFiles = techStructure.criticalFiles.filter(file => 
+        !fixedFiles.some(f => f.path === file)
+    );
+
+    if (missingFiles.length > 0) {
+        console.error('[ResponseFilter] Missing critical files:', missingFiles);
+        throw new Error(`Missing critical files for ${technology}: ${missingFiles.join(', ')}`);
+    }
+
     // Log the final structure
     console.log('[ResponseFilter] Final file structure:');
     fixedFiles.forEach(file => {
@@ -449,6 +659,6 @@ function verifyAndFixFileStructure(files) {
     });
 
     return fixedFiles;
-}
+  }
   
   module.exports = { filterAIResponse, parseProjectFiles }; 

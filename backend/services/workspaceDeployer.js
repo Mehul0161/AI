@@ -4,6 +4,10 @@ const execPromise = util.promisify(exec);
 const { Daytona } = require('@daytonaio/sdk');
 const workspaceManager = require('./workspaceManager');
 const viteConfigManager = require('./viteConfigManager');
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
+const fetch = require('node-fetch');
 
 /**
  * Deploys generated files to a workspace and starts the development server
