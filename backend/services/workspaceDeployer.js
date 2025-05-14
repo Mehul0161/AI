@@ -208,7 +208,10 @@ async function deployToWorkspace(workspace, files, technology) {
                     npm config set fetch-retry-maxtimeout 120000 && \
                     npm config set fetch-timeout 300000 && \
                     # Install dependencies with optimized settings
-                    npm install --no-audit --no-fund --prefer-offline --no-package-lock --legacy-peer-deps
+                    npm install --no-audit --no-fund --prefer-offline --no-package-lock --legacy-peer-deps && \
+                    # Ensure Vite plugin is installed for React/Vue
+                    ${technology.toLowerCase().includes('react') ? 'npm install @vitejs/plugin-react@^4.2.1 --save-dev' : ''} \
+                    ${technology.toLowerCase().includes('vue') ? 'npm install @vitejs/plugin-vue@^4.3.4 --save-dev' : ''}
                 `;
                 
                 const installResult = await workspace.process.executeSessionCommand(sessionId, { 

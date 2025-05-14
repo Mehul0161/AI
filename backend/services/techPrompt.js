@@ -52,7 +52,12 @@ Implement state management where required (React Context API preferred for small
 Ensure responsive design using Tailwind css.
 
 Include essential files:
-package.json with all dependencies.
+package.json with all dependencies including:
+  - "@vitejs/plugin-react": "^4.2.1"
+  - "vite": "^5.0.0"
+  - "react": "^18.2.0"
+  - "react-dom": "^18.2.0"
+  - "@fortawesome/react-fontawesome": "^0.2.0"
 README.md with clear setup instructions.
 index.html and index.css are essential
 is has to be a single page application. no need to create multiple pages.
