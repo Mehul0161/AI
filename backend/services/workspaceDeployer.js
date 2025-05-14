@@ -29,6 +29,19 @@ async function deployToWorkspace(workspace, files, technology) {
         const workspaceInfo = await workspace.info();
         const previewHost = `3000-${workspaceInfo.id}.${workspaceInfo.nodeDomain}`;
 
+        // Extract project name from package.json content
+        let projectName = 'luxecart'; // default fallback
+        try {
+            const packageJsonFile = files.find(file => file.path.endsWith('package.json'));
+            if (packageJsonFile) {
+                const packageJson = JSON.parse(packageJsonFile.content);
+                projectName = packageJson.name || projectName;
+            }
+        } catch (error) {
+            console.error('[WorkspaceDeployer] Error extracting project name:', error);
+        }
+        console.log(`[WorkspaceDeployer] Project name: ${projectName}`);
+
         // Initialize workspace directory
         console.log('[WorkspaceDeployer] Initializing workspace directory...');
         const initCommands = [
@@ -36,7 +49,8 @@ async function deployToWorkspace(workspace, files, technology) {
             'ls -la',
             'rm -rf testdir',
             'mkdir -p testdir',
-            'cd testdir'
+            `mkdir -p testdir/${projectName}`,
+            `cd testdir/${projectName}`
         ];
 
         for (const cmd of initCommands) {
@@ -51,66 +65,89 @@ async function deployToWorkspace(workspace, files, technology) {
         // Create Vite config if it's a Vite-based project
         if (technology.toLowerCase().includes('vite') || technology.toLowerCase().includes('react')) {
             console.log('[WorkspaceDeployer] Creating Vite configuration...');
-            await viteConfigManager.createViteConfig(workspace, workspaceInfo.id, workspaceInfo.nodeDomain, sessionId);
+            const viteConfigCreated = await viteConfigManager.createViteConfig(workspace, workspaceInfo.id, workspaceInfo.nodeDomain, sessionId, projectName);
+            if (!viteConfigCreated) {
+                console.warn('[WorkspaceDeployer] Vite config creation failed, continuing with deployment...');
+            }
         }
 
         // Upload files using the structure from responseFilter
         console.log('[WorkspaceDeployer] Starting file upload process...');
+        let uploadSuccess = true;
         for (const file of files) {
             // Skip vite.config.js as it's handled separately
-            if (file.path === 'vite.config.js') {
+            if (file.path.endsWith('vite.config.js')) {
                 console.log('[WorkspaceDeployer] Skipping vite.config.js as it will be created separately');
                 continue;
             }
 
+            // Remove project name from path if it exists at the start
+            const filePath = file.path.startsWith(`${projectName}/`) 
+                ? file.path.substring(projectName.length + 1) 
+                : file.path;
+
             // Use the path directly from the responseFilter
-            const targetPath = `/home/daytona/testdir/${file.path}`;
+            const targetPath = `/home/daytona/testdir/${projectName}/${filePath}`;
             console.log(`[WorkspaceDeployer] Processing file: ${targetPath}`);
             
             try {
                 if (!file.content || typeof file.content !== 'string' || file.content.trim() === '') {
                     console.error(`[WorkspaceDeployer] Error: Invalid or empty content for file ${file.path}`);
-                    throw new Error(`Invalid or empty content for file ${file.path}`);
+                    continue;
                 }
 
-                // Create directory with error handling
+                // Create directory with error handling and timeout
                 const dirPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
                 console.log(`[WorkspaceDeployer] Creating directory: ${dirPath}`);
-                await workspace.process.executeSessionCommand(sessionId, { 
+                const mkdirResult = await workspace.process.executeSessionCommand(sessionId, { 
                     command: `mkdir -p ${dirPath}`,
-                    timeout: 30000
+                    timeout: 10000
                 });
 
-                // Write file content with proper escaping
+                if (!mkdirResult || mkdirResult.error) {
+                    console.error(`[WorkspaceDeployer] Failed to create directory ${dirPath}:`, mkdirResult?.error);
+                    continue;
+                }
+
+                // Write file content with proper escaping and timeout
                 const escapedContent = file.content.replace(/'/g, "'\\''");
-                const createFileCmd = `echo '${escapedContent}' > ${targetPath}`;
-                await workspace.process.executeSessionCommand(sessionId, {
-                    command: createFileCmd,
-                    timeout: 30000
+                const writeResult = await workspace.process.executeSessionCommand(sessionId, {
+                    command: `echo '${escapedContent}' > ${targetPath}`,
+                    timeout: 10000
                 });
+
+                if (!writeResult || writeResult.error) {
+                    console.error(`[WorkspaceDeployer] Failed to write file ${targetPath}:`, writeResult?.error);
+                    continue;
+                }
                 
-                // Verify file content
-                const verifyCmd = `cat ${targetPath}`;
+                // Verify file content with timeout
                 const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
-                    command: verifyCmd,
-                    timeout: 30000
+                    command: `cat ${targetPath}`,
+                    timeout: 10000
                 });
                 
-                if (!verifyResult.output || verifyResult.output.trim() === '') {
-                    throw new Error(`File ${file.path} was created but is empty`);
+                if (!verifyResult || verifyResult.error || !verifyResult.output || verifyResult.output.trim() === '') {
+                    console.error(`[WorkspaceDeployer] File verification failed for ${targetPath}`);
+                    continue;
                 }
                 
                 console.log(`[WorkspaceDeployer] Successfully created and verified: ${targetPath}`);
             } catch (uploadError) {
                 console.error(`[WorkspaceDeployer] Error uploading file ${targetPath}:`, uploadError);
-                throw uploadError;
+                uploadSuccess = false;
+                continue;
             }
+        }
+
+        if (!uploadSuccess) {
+            console.warn('[WorkspaceDeployer] Some files failed to upload, but continuing with deployment...');
         }
 
         // Verify the final structure
         console.log('[WorkspaceDeployer] Verifying final file structure...');
         const structureCheck = await workspace.process.executeSessionCommand(sessionId, {
-            command: 'cd /home/daytona/testdir && find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | sort',
+            command: `cd /home/daytona/testdir/${projectName} && find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | sort`,
             timeout: 30000
         });
         console.log('[WorkspaceDeployer] Final file structure:', structureCheck.output);
@@ -126,9 +163,9 @@ async function deployToWorkspace(workspace, files, technology) {
 
         for (const file of criticalFiles) {
             const checkFile = await workspace.process.executeSessionCommand(sessionId, {
-                command: `cd /home/daytona/testdir && test -f ${file} && echo "Found ${file}" || echo "Missing ${file}"`,
+                command: `cd /home/daytona/testdir/${projectName} && test -f ${file} && echo "Found ${file}" || echo "Missing ${file}"`,
                 timeout: 30000
-        });
+            });
             console.log(`[WorkspaceDeployer] ${checkFile.output.trim()}`);
         }
 
@@ -137,9 +174,9 @@ async function deployToWorkspace(workspace, files, technology) {
         for (const file of criticalFiles) {
             try {
                 const contentCheck = await workspace.process.executeSessionCommand(sessionId, {
-                    command: `cd /home/daytona/testdir && cat ${file}`,
+                    command: `cd /home/daytona/testdir/${projectName} && cat ${file}`,
                     timeout: 30000
-        });
+                });
                 console.log(`[WorkspaceDeployer] Contents of ${file}:`);
                 console.log(contentCheck.output);
             } catch (error) {
@@ -165,7 +202,7 @@ async function deployToWorkspace(workspace, files, technology) {
                 
                 // Create a temporary script for npm installation
                 const installScript = `
-                    cd /home/daytona/testdir && \
+                    cd /home/daytona/testdir/${projectName} && \
                     # Set npm configuration
                     npm config set fetch-retry-mintimeout 20000 && \
                     npm config set fetch-retry-maxtimeout 120000 && \
@@ -207,7 +244,7 @@ async function deployToWorkspace(workspace, files, technology) {
 
             // Create a temporary script to start the server
             const startScript = `
-                cd /home/daytona/testdir && \
+                cd /home/daytona/testdir/${projectName} && \
                 # Create .env file with necessary variables
                 echo 'VITE_HOST=0.0.0.0' > .env && \
                 echo 'VITE_PORT=3000' >> .env && \
@@ -235,13 +272,13 @@ async function deployToWorkspace(workspace, files, technology) {
                 
                 // Check if process is running
                 const processCheck = await workspace.process.executeSessionCommand(sessionId, {
-                    command: `if [ -f /home/daytona/testdir/server.pid ] && ps -p $(cat /home/daytona/testdir/server.pid) > /dev/null; then echo "running"; else echo "not running"; fi`,
+                    command: `if [ -f /home/daytona/testdir/${projectName}/server.pid ] && ps -p $(cat /home/daytona/testdir/${projectName}/server.pid) > /dev/null; then echo "running"; else echo "not running"; fi`,
                     timeout: 30000
                 });
                 
                 if (processCheck.output.trim() !== 'running') {
                     const logResult = await workspace.process.executeSessionCommand(sessionId, {
-                        command: 'cat /home/daytona/testdir/dev-server.log',
+                        command: `cat /home/daytona/testdir/${projectName}/dev-server.log`,
                         timeout: 30000
                     });
                     console.error('[WorkspaceDeployer] Server log:', logResult.output);

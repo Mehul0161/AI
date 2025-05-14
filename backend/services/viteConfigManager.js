@@ -1,4 +1,4 @@
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
 
 class ViteConfigManager {
@@ -8,22 +8,35 @@ class ViteConfigManager {
                 host: true,
                 port: 3000,
                 strictPort: true,
-                hmr: false,
-                watch: {
-                    usePolling: false
+                hmr: {
+                    clientPort: 443,
+                    path: 'hmr/'
                 },
-                proxy: {
-                    '/api': {
-                        target: 'http://localhost:3000',
-                        changeOrigin: true,
-                        secure: false
-                    }
+                cors: {
+                    origin: '*',
+                    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                    allowedHeaders: ['Content-Type', 'Authorization']
+                },
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Frame-Options': 'ALLOWALL',
+                    'Content-Security-Policy': "frame-ancestors *"
                 }
             },
             preview: {
                 port: 3000,
                 strictPort: true,
-                host: true
+                host: true,
+                cors: {
+                    origin: '*',
+                    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                    allowedHeaders: ['Content-Type', 'Authorization']
+                },
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Frame-Options': 'ALLOWALL',
+                    'Content-Security-Policy': "frame-ancestors *"
+                }
             }
         };
     }
@@ -38,61 +51,34 @@ class ViteConfigManager {
         const previewUrl = `https://3000-${workspaceId}.${nodeDomain}`;
         const workspaceDomain = `${workspaceId}.${nodeDomain}`;
         const previewHost = `3000-${workspaceId}.${nodeDomain}`;
-        
+
+        // Generate allowed hosts with specific patterns
         const allowedHosts = [
-            'localhost',
-            workspaceDomain,
             previewHost,
-            previewUrl,
-            'codex-v4-backend.vercel.app',
-            'latest-frontend.vercel.app'
+            workspaceDomain,
+            `*.${nodeDomain}`,
+            `3000-*.${nodeDomain}`,
+            `*.h*.${nodeDomain}`,
+            `3000-*.h*.${nodeDomain}`
         ];
-        
-        return {
+
+        const config = {
             ...this.defaultConfig,
             server: {
                 ...this.defaultConfig.server,
-                cors: {
-                    origin: '*',
-                    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-                    allowedHeaders: ['Content-Type', 'Authorization']
-                },
                 allowedHosts,
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                    'X-Frame-Options': 'ALLOWALL',
-                    'Content-Security-Policy': "frame-ancestors *"
+                hmr: {
+                    ...this.defaultConfig.server.hmr,
+                    host: previewHost
                 }
             },
             preview: {
                 ...this.defaultConfig.preview,
-                allowedHosts,
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                    'X-Frame-Options': 'ALLOWALL',
-                    'Content-Security-Policy': "frame-ancestors *"
-                }
-            },
-            define: {
-                'process.env.VITE_PREVIEW_URL': JSON.stringify(previewUrl),
-                'process.env.NODE_ENV': JSON.stringify('development')
-            },
-            optimizeDeps: {
-                exclude: ['@vite/client']
-            },
-            build: {
-                sourcemap: true,
-                rollupOptions: {
-                    output: {
-                        manualChunks: undefined
-                    }
-                }
+                allowedHosts
             }
         };
+
+        return config;
     }
 
     /**
@@ -101,52 +87,72 @@ class ViteConfigManager {
      * @param {string} workspaceId - The workspace ID
      * @param {string} nodeDomain - The node domain
      * @param {string} sessionId - The session ID to use for commands
+     * @param {string} projectName - The name of the project
      * @returns {Promise<boolean>} Whether the config was created successfully
      */
-    async createViteConfig(workspace, workspaceId, nodeDomain, sessionId) {
+    async createViteConfig(workspace, workspaceId, nodeDomain, sessionId, projectName) {
         try {
+            console.log('[ViteConfigManager] Creating Vite configuration...');
             const config = this.generateViteConfig(workspaceId, nodeDomain);
-            const configContent = `import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+            
+            // Create the config file content
+            const configContent = `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-export default defineConfig(${JSON.stringify(config, null, 2)})`;
-            
-            const targetPath = '/home/daytona/testdir/vite.config.js';
-            
-            // Create directory if it doesn't exist
-            await workspace.process.executeSessionCommand(sessionId, {
-                command: `mkdir -p ${path.dirname(targetPath)}`,
-                timeout: 30000
-            });
+export default defineConfig({
+  plugins: [react()],
+  server: ${JSON.stringify(config.server, null, 2)},
+  preview: ${JSON.stringify(config.preview, null, 2)}
+});`;
 
-            // Write file content with proper escaping
-            const escapedContent = configContent.replace(/'/g, "'\\''");
-            const createFileCmd = `echo '${escapedContent}' > ${targetPath}`;
-            await workspace.process.executeSessionCommand(sessionId, {
-                command: createFileCmd,
-                timeout: 30000
+            // Set the target path in the project directory
+            const targetPath = `/home/daytona/testdir/${projectName}/vite.config.js`;
+            console.log(`[ViteConfigManager] Creating Vite config at: ${targetPath}`);
+
+            // Create directory if it doesn't exist with timeout
+            const dirPath = path.dirname(targetPath);
+            const mkdirResult = await workspace.process.executeSessionCommand(sessionId, {
+                command: `mkdir -p ${dirPath}`,
+                timeout: 10000
             });
             
-            // Verify file content
-            const verifyCmd = `cat ${targetPath}`;
-            const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
-                command: verifyCmd,
-                timeout: 30000
-            });
-            
-            if (!verifyResult.output || verifyResult.output.trim() === '') {
-                throw new Error('Vite config file was created but is empty');
+            if (!mkdirResult || mkdirResult.error) {
+                throw new Error(`Failed to create directory: ${mkdirResult?.error || 'Unknown error'}`);
             }
 
-            console.log('[ViteConfigManager] Successfully created Vite config');
-            return true;
+            // Write the file with timeout and proper escaping
+            const escapedContent = configContent.replace(/'/g, "'\\''");
+            const writeResult = await workspace.process.executeSessionCommand(sessionId, {
+                command: `echo '${escapedContent}' > ${targetPath}`,
+                timeout: 10000
+            });
+
+            if (!writeResult || writeResult.error) {
+                throw new Error(`Failed to write file: ${writeResult?.error || 'Unknown error'}`);
+            }
+
+            // Verify the file was created with timeout
+            const verifyResult = await workspace.process.executeSessionCommand(sessionId, {
+                command: `cat ${targetPath}`,
+                timeout: 10000
+            });
+
+            if (!verifyResult || verifyResult.error) {
+                throw new Error(`Failed to verify file: ${verifyResult?.error || 'Unknown error'}`);
+            }
+
+            if (verifyResult.output.includes('defineConfig')) {
+                console.log('[ViteConfigManager] Vite config created successfully');
+                return true;
+            } else {
+                throw new Error('Vite config verification failed - content mismatch');
+            }
         } catch (error) {
             console.error('[ViteConfigManager] Error creating Vite config:', error);
+            // Don't throw the error, just return false to allow the process to continue
             return false;
         }
     }
 }
 
-// Create a singleton instance
-const viteConfigManager = new ViteConfigManager();
-module.exports = viteConfigManager; 
+module.exports = new ViteConfigManager(); 

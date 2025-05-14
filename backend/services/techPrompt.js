@@ -4,6 +4,10 @@ const techPrompts = {
 IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
 make the project in under 8000 tokens.
 
+When generating the project:
+- For Font Awesome, use the CDN link without integrity or crossorigin attributes
+- Do not include favicon files or references - they are not needed for functionality
+
 
 Project Name: [your-generated-project-name]
 
@@ -80,6 +84,9 @@ example structure:
 
 IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
 Project Name: [your-generated-project-name]
+When generating the project:
+- For Font Awesome, use the CDN link without integrity or crossorigin attributes
+- Do not include favicon files or references - they are not needed for functionality
 
 For each file in the project:
 Start with File: [filepath] on a new line.
@@ -143,6 +150,10 @@ next.config.mjs (if any necessary config is needed).
 
 IMPORTANT: First, analyze the user's prompt and generate a descriptive project name. Start your response with:
 Project Name: [your-generated-project-name]
+
+When generating the project:
+- For Font Awesome, use the CDN link without integrity or crossorigin attributes
+- Do not include favicon files or references - they are not needed for functionality
 
 For each file in the project:
 
