@@ -63,9 +63,9 @@ async function deployToWorkspace(workspace, files, technology) {
         }
 
         // Create Vite config if it's a Vite-based project
-        if (technology.toLowerCase().includes('vite') || technology.toLowerCase().includes('react')) {
+        if (technology.toLowerCase().includes('vite') || technology.toLowerCase().includes('react') || technology.toLowerCase().includes('vue')) {
             console.log('[WorkspaceDeployer] Creating Vite configuration...');
-            const viteConfigCreated = await viteConfigManager.createViteConfig(workspace, workspaceInfo.id, workspaceInfo.nodeDomain, sessionId, projectName);
+            const viteConfigCreated = await viteConfigManager.createViteConfig(workspace, workspaceInfo.id, workspaceInfo.nodeDomain, sessionId, projectName, technology);
             if (!viteConfigCreated) {
                 console.warn('[WorkspaceDeployer] Vite config creation failed, continuing with deployment...');
             }

@@ -45,9 +45,10 @@ class ViteConfigManager {
      * Generates a Vite config with the workspace preview URL
      * @param {string} workspaceId - The Daytona workspace ID
      * @param {string} nodeDomain - The Daytona node domain
+     * @param {string} technology - The technology of the project
      * @returns {Object} The Vite configuration object
      */
-    generateViteConfig(workspaceId, nodeDomain) {
+    generateViteConfig(workspaceId, nodeDomain, technology) {
         const previewUrl = `https://3000-${workspaceId}.${nodeDomain}`;
         const workspaceDomain = `${workspaceId}.${nodeDomain}`;
         const previewHost = `3000-${workspaceId}.${nodeDomain}`;
@@ -81,22 +82,19 @@ class ViteConfigManager {
         return config;
     }
 
-    /**
-     * Creates a Vite config file in the workspace
-     * @param {Object} workspace - The Daytona workspace object
-     * @param {string} workspaceId - The workspace ID
-     * @param {string} nodeDomain - The node domain
-     * @param {string} sessionId - The session ID to use for commands
-     * @param {string} projectName - The name of the project
-     * @returns {Promise<boolean>} Whether the config was created successfully
-     */
-    async createViteConfig(workspace, workspaceId, nodeDomain, sessionId, projectName) {
-        try {
-            console.log('[ViteConfigManager] Creating Vite configuration...');
-            const config = this.generateViteConfig(workspaceId, nodeDomain);
-            
-            // Create the config file content
-            const configContent = `import { defineConfig } from 'vite';
+    generateVueConfig(config) {
+        return `import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+
+export default defineConfig({
+  plugins: [vue()],
+  server: ${JSON.stringify(config.server, null, 2)},
+  preview: ${JSON.stringify(config.preview, null, 2)}
+});`;
+    }
+
+    generateReactConfig(config) {
+        return `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -104,6 +102,30 @@ export default defineConfig({
   server: ${JSON.stringify(config.server, null, 2)},
   preview: ${JSON.stringify(config.preview, null, 2)}
 });`;
+    }
+
+    /**
+     * Creates a Vite config file in the workspace
+     * @param {Object} workspace - The Daytona workspace object
+     * @param {string} workspaceId - The workspace ID
+     * @param {string} nodeDomain - The node domain
+     * @param {string} sessionId - The session ID to use for commands
+     * @param {string} projectName - The name of the project
+     * @param {string} technology - The technology of the project
+     * @returns {Promise<boolean>} Whether the config was created successfully
+     */
+    async createViteConfig(workspace, workspaceId, nodeDomain, sessionId, projectName, technology) {
+        try {
+            console.log('[ViteConfigManager] Creating Vite configuration...');
+            const config = this.generateViteConfig(workspaceId, nodeDomain, technology);
+            
+            // Generate config content based on technology
+            let configContent;
+            if (technology.toLowerCase().includes('vue')) {
+                configContent = this.generateVueConfig(config);
+            } else {
+                configContent = this.generateReactConfig(config);
+            }
 
             // Set the target path in the project directory
             const targetPath = `/home/daytona/testdir/${projectName}/vite.config.js`;
@@ -149,7 +171,6 @@ export default defineConfig({
             }
         } catch (error) {
             console.error('[ViteConfigManager] Error creating Vite config:', error);
-            // Don't throw the error, just return false to allow the process to continue
             return false;
         }
     }
