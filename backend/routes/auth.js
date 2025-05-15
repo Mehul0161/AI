@@ -49,7 +49,12 @@ router.post('/register', async (req, res) => {
     const user = new User({
       email: email.toLowerCase(),
       password,
-      name
+      name,
+      credits: {
+        dailyCredits: 5,
+        purchasedCredits: 0,
+        lastDailyReset: new Date()
+      }
     });
 
     console.log('Attempting to save new user:', { email: user.email, name: user.name });
@@ -81,7 +86,8 @@ router.post('/register', async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        credits: user.credits
       }
     });
   } catch (error) {
@@ -127,6 +133,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Check and reset daily credits if needed
+    user.checkAndResetDailyCredits();
+    await user.save();
+
     // Generate token
     const token = jwt.sign(
       { userId: user._id },
@@ -139,7 +149,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        credits: user.credits
       }
     });
   } catch (error) {
@@ -169,9 +180,17 @@ router.get('/me', async (req, res) => {
       });
     }
 
+    // Check and reset daily credits if needed
+    user.checkAndResetDailyCredits();
+    await user.save();
+
+    const userProfile = user.getPublicProfile();
     res.json({
       success: true,
-      user: user.getPublicProfile()
+      user: {
+        ...userProfile,
+        credits: user.credits
+      }
     });
   } catch (error) {
     console.error('Get user error:', error);

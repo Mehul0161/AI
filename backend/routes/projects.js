@@ -42,6 +42,27 @@ router.post('/', auth, async (req, res) => {
   try {
     const { name, technology, files } = req.body;
     
+    if (!name || !technology || !files || !Array.isArray(files)) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        details: {
+          name: !name ? 'Project name is required' : null,
+          technology: !technology ? 'Technology is required' : null,
+          files: !files ? 'Files are required' : !Array.isArray(files) ? 'Files must be an array' : null
+        }
+      });
+    }
+
+    // Validate files array
+    for (const file of files) {
+      if (!file.path || !file.content) {
+        return res.status(400).json({
+          error: 'Invalid file format',
+          details: 'Each file must have path and content'
+        });
+      }
+    }
+    
     // Create new project
     const project = new Project({
       name,
@@ -53,12 +74,18 @@ router.post('/', auth, async (req, res) => {
     await project.save();
     
     // Add project to user's projects array
-    req.user.projects.push(project._id);
-    await req.user.save();
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { $push: { projects: project._id } }
+    );
     
     res.status(201).json(project);
   } catch (error) {
-    res.status(500).json({ error: 'Error creating project' });
+    console.error('Error creating project:', error);
+    res.status(500).json({ 
+      error: 'Error creating project',
+      details: error.message
+    });
   }
 });
 

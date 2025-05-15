@@ -51,7 +51,12 @@
       </div>
       <div class="flex justify-between text-xs text-gray-400">
         <span id="creditsText">0/5</span>
-        <span class="flex items-center gap-1"><svg class="w-3 h-3 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> <span id="creditsDetail">0 of your daily credits used</span></span>
+        <span class="flex items-center gap-1">
+          <svg class="w-3 h-3 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+          <span id="creditsDetail">0 of your daily credits used</span>
+        </span>
       </div>
     </div>
     <!-- Divider -->
@@ -558,6 +563,98 @@
         downloadBtn.disabled = false;
       }
     }
+
+    // Function to update credits display
+    function updateCreditsDisplay(user) {
+        if (!user || !user.credits) return;
+        
+        const dailyCredits = user.credits.dailyCredits || 0;
+        const purchasedCredits = user.credits.purchasedCredits || 0;
+        const totalCredits = dailyCredits + purchasedCredits;
+        const usedCredits = 5 - dailyCredits; // Assuming 5 is the daily limit
+        
+        // Update credits bar
+        const creditsBar = document.getElementById('creditsBar');
+        if (creditsBar) {
+            creditsBar.style.width = `${(usedCredits / 5) * 100}%`;
+        }
+        
+        // Update credits text
+        const creditsText = document.getElementById('creditsText');
+        if (creditsText) {
+            creditsText.textContent = `${usedCredits}/5`;
+        }
+        
+        // Update credits detail
+        const creditsDetail = document.getElementById('creditsDetail');
+        if (creditsDetail) {
+            creditsDetail.textContent = `${usedCredits} of your daily credits used`;
+        }
+    }
+
+    // Update the existing fetchUserProfile function
+    async function fetchUserProfile() {
+        try {
+            const token = localStorage.getItem('codexToken');
+            if (!token) {
+                console.log('No token found');
+                return;
+            }
+
+            const response = await fetch('http://localhost:4000/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to fetch user profile');
+            }
+
+            const data = await response.json();
+            if (data.success && data.user) {
+                // Update user info in sidebar
+                const userInitial = document.getElementById('sidebarUserInitial');
+                const userName = document.getElementById('sidebarUserName');
+                const userEmail = document.getElementById('sidebarUserEmail');
+                const editorUserInitial = document.getElementById('editorUserInitial');
+                
+                if (userInitial) userInitial.textContent = data.user.name.charAt(0).toUpperCase();
+                if (userName) userName.textContent = data.user.name;
+                if (userEmail) userEmail.textContent = data.user.email;
+                if (editorUserInitial) editorUserInitial.textContent = data.user.name.charAt(0).toUpperCase();
+                
+                // Update credits display
+                updateCreditsDisplay(data.user);
+            }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            // Show error in UI
+            const alertModal = document.getElementById('customAlert');
+            const alertTitle = document.getElementById('alertTitle');
+            const alertMessage = document.getElementById('alertMessage');
+            const alertIcon = document.getElementById('alertIcon');
+            
+            alertTitle.textContent = 'Profile Error';
+            alertMessage.textContent = error.message || 'Failed to fetch user profile. Please try again.';
+            alertIcon.innerHTML = `
+                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            `;
+            alertModal.classList.remove('hidden');
+            
+            // Add click handler for the OK button
+            const confirmBtn = document.getElementById('alertConfirmBtn');
+            confirmBtn.onclick = () => {
+                alertModal.classList.add('hidden');
+            };
+        }
+    }
+
+    // Call fetchUserProfile when the page loads
+    document.addEventListener('DOMContentLoaded', fetchUserProfile);
   </script>
 </body>
 </html> 

@@ -4,6 +4,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects');
+const generateRoutes = require('./routes/generate');
+const creditsRoutes = require('./routes/credits');
 
 // Load environment variables
 dotenv.config();
@@ -69,8 +71,7 @@ app.get('/health', (req, res) => {
 });
 
 // Project code generation endpoint
-const generateRouter = require('./routes/generate');
-app.use('/generate', generateRouter);
+app.use('/generate', generateRoutes);
 
 // Prompt enhancement endpoint
 const enhanceRouter = require('./routes/enhance');
@@ -93,6 +94,9 @@ app.use('/auth', authRoutes);
 
 // Project routes
 app.use('/projects', projectRoutes);
+
+// Credits routes
+app.use('/credits', creditsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -140,8 +144,8 @@ module.exports = app;
 
 // Start server only if not in serverless environment
 if (process.env.NODE_ENV !== 'production') {
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-}); 
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Main server running on port ${PORT}`);
+  });
 } 

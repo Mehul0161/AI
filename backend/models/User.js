@@ -27,6 +27,20 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project'
   }],
+  credits: {
+    dailyCredits: {
+      type: Number,
+      default: 5
+    },
+    purchasedCredits: {
+      type: Number,
+      default: 0
+    },
+    lastDailyReset: {
+      type: Date,
+      default: Date.now
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -56,6 +70,23 @@ userSchema.methods.getPublicProfile = function() {
   const userObject = this.toObject();
   delete userObject.password;
   return userObject;
+};
+
+// Method to check and reset daily credits
+userSchema.methods.checkAndResetDailyCredits = function() {
+  const now = new Date();
+  const lastReset = new Date(this.credits.lastDailyReset);
+  
+  // Check if it's a new day
+  if (now.getDate() !== lastReset.getDate() || 
+      now.getMonth() !== lastReset.getMonth() || 
+      now.getFullYear() !== lastReset.getFullYear()) {
+    
+    this.credits.dailyCredits = 5;
+    this.credits.lastDailyReset = now;
+    return true;
+  }
+  return false;
 };
 
 // Add error handling for duplicate key errors

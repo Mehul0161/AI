@@ -3,6 +3,42 @@ const router = express.Router();
 const { generateCode } = require('../services/generateCode');
 const { parseProjectFiles } = require('../services/responseFilter');
 const { createWorkspace } = require('../services/daytonaCreation');
+const User = require('../models/User');
+const jwt = require('jsonwebtoken');
+const auth = require('../middleware/auth');
+const Credits = require('../models/Credits');
+
+// Auth middleware
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'No token provided'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({
+      success: false,
+      error: 'Invalid token'
+    });
+  }
+};
 
 // Track active requests to prevent duplicates
 const activeRequests = new Map();
@@ -65,7 +101,7 @@ function getProviderFromModel(model) {
 }
 
 // POST /generate
-router.post('/', async (req, res) => {
+router.post('/', auth, async (req, res) => {
   const requestId = Date.now();
   const requestKey = `${req.body.prompt}-${req.body.technology}-${req.body.model}`;
   
@@ -75,18 +111,18 @@ router.post('/', async (req, res) => {
     // Set a longer timeout for the response
     req.setTimeout(300000); // 5 minutes
     
-  // Check if this exact request is already being processed
-  if (activeRequests.has(requestKey)) {
-    console.log(`[${requestId}] Duplicate request detected, returning existing response`);
+    // Check if this exact request is already being processed
+    if (activeRequests.has(requestKey)) {
+      console.log(`[${requestId}] Duplicate request detected, returning existing response`);
       return res.status(429).json({ 
         success: false,
         error: 'Request already in progress' 
       });
-  }
-  
-  const { prompt, technology, model } = req.body;
-  
-  if (!prompt || !technology || !model) {
+    }
+    
+    const { prompt, technology, model } = req.body;
+    
+    if (!prompt || !technology || !model) {
       return res.status(400).json({ 
         success: false,
         error: 'Missing required fields',
@@ -96,76 +132,119 @@ router.post('/', async (req, res) => {
           model: !model ? 'Model is required' : null
         }
       });
-  }
+    }
 
-  // Mark this request as active
-  activeRequests.set(requestKey, requestId);
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  let workspaceInfo = null;
-  let workspace = null;
+    // Check and reset daily credits if needed
+    await user.checkAndResetDailyCredits();
 
-  try {
-    // Generate code first
+    // Check if user has any credits
+    const totalCredits = user.credits.dailyCredits + user.credits.purchasedCredits;
+    if (totalCredits <= 0) {
+      return res.status(403).json({ 
+        error: 'Insufficient credits',
+        message: 'You have no credits remaining. Please purchase credits to continue.',
+        redirectToPurchase: true
+      });
+    }
+
+    // Deduct credits - use daily credits first, then purchased credits
+    let creditType = 'daily';
+    if (user.credits.dailyCredits > 0) {
+      user.credits.dailyCredits -= 1;
+    } else if (user.credits.purchasedCredits > 0) {
+      user.credits.purchasedCredits -= 1;
+      creditType = 'purchase';
+    }
+
+    await user.save();
+
+    // Record the credit transaction
+    const transaction = new Credits({
+      user: user._id,
+      type: creditType,
+      amount: -1,
+      description: 'Project generation',
+      balance: user.credits.dailyCredits + user.credits.purchasedCredits
+    });
+    await transaction.save();
+
+    // Mark this request as active
+    activeRequests.set(requestKey, requestId);
+
+    let workspaceInfo = null;
+    let workspace = null;
+
+    try {
+      // Generate code first
       console.log(`[${requestId}] Generating code...`);
-    const codeResponse = await generateCode({ prompt, technology, model });
+      const codeResponse = await generateCode({ prompt, technology, model });
       
       if (!codeResponse) {
         throw new Error('No response received from code generation');
       }
       
-    console.log(`[${requestId}] Raw AI response created`);
+      console.log(`[${requestId}] Raw AI response created`);
       
-    const provider = getProviderFromModel(model.toLowerCase());
-    let codeText = extractCodeTextFromResponse(codeResponse, provider);
+      const provider = getProviderFromModel(model.toLowerCase());
+      let codeText = extractCodeTextFromResponse(codeResponse, provider);
       
       if (!codeText) {
         throw new Error('No code text extracted from response');
       }
       
-    if (provider === 'claude' && Array.isArray(codeText)) {
-      codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
-    }
+      if (provider === 'claude' && Array.isArray(codeText)) {
+        codeText = codeText.map(item => (typeof item === 'string' ? item : item.text || '')).join('\n');
+      }
       
-    console.log(`[${requestId}] Provider:`, provider);
-    console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
-    
-    const { files, projectName } = parseProjectFiles(codeText, provider);
+      console.log(`[${requestId}] Provider:`, provider);
+      console.log(`[${requestId}] Extracted codeText (first 500 chars):`, typeof codeText === 'string' ? codeText.slice(0, 500) : JSON.stringify(codeText).slice(0, 500));
+      
+      const { files, projectName } = parseProjectFiles(codeText, provider);
       
       if (!files || !Array.isArray(files) || files.length === 0) {
         throw new Error('No valid files were parsed from the AI response');
       }
       
-    const processedFiles = files.map(file => ({
-      ...file,
-      provider,
-      model,
-      technology
-    }));
+      const processedFiles = files.map(file => ({
+        ...file,
+        provider,
+        model,
+        technology
+      }));
 
-    // Create workspace and deploy files if not static
-    if (technology !== 'Static') {
-      console.log(`[${requestId}] Creating workspace with ${processedFiles.length} files`);
-      try {
-        workspace = await createWorkspace(technology, processedFiles);
-        if (workspace) {
-          workspaceInfo = extractWorkspaceInfo(workspace);
-          console.log(`[${requestId}] Workspace created and files deployed:`, workspaceInfo);
-        } else {
-          console.error(`[${requestId}] Failed to create workspace and deploy files`);
+      // Create workspace and deploy files if not static
+      if (technology !== 'Static') {
+        console.log(`[${requestId}] Creating workspace with ${processedFiles.length} files`);
+        try {
+          workspace = await createWorkspace(technology, processedFiles);
+          if (workspace) {
+            workspaceInfo = extractWorkspaceInfo(workspace);
+            console.log(`[${requestId}] Workspace created and files deployed:`, workspaceInfo);
+          } else {
+            console.error(`[${requestId}] Failed to create workspace and deploy files`);
             throw new Error('Failed to create workspace');
-        }
-      } catch (error) {
-        console.error(`[${requestId}] Error creating workspace and deploying files:`, error);
+          }
+        } catch (error) {
+          console.error(`[${requestId}] Error creating workspace and deploying files:`, error);
           throw new Error(`Workspace deployment failed: ${error.message}`);
+        }
       }
-    }
-    
+      
       return res.json({ 
         success: true,
-      files: processedFiles,
-      projectName,
-      workspace: workspaceInfo
-    });
+        files: processedFiles,
+        projectName,
+        workspace: workspaceInfo,
+        credits: {
+          dailyCredits: user.credits.dailyCredits,
+          purchasedCredits: user.credits.purchasedCredits
+        }
+      });
     } catch (error) {
       console.error(`[${requestId}] Generate error:`, error);
       return res.status(500).json({

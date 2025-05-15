@@ -827,49 +827,128 @@ function getMainHtmlFile() {
   return generatedFiles.find(f => f.path.endsWith('.html'));
 }
 
-function assembleStaticPreviewHtml() {
-  const mainHtml = getMainHtmlFile();
-  if (!mainHtml) {
-    console.error('No main HTML file found');
-    return null;
-  }
-  
-  console.log('Main HTML file found:', mainHtml.path);
-  let html = mainHtml.content;
-  
-  // Inject CSS files
-  const cssFiles = generatedFiles.filter(f => f.path.endsWith('.css'));
-  console.log('Found CSS files:', cssFiles.map(f => f.path));
-  if (cssFiles.length > 0) {
-    const styles = cssFiles.map(f => `<style>\n${f.content}\n</style>`).join('\n');
-    // Try to inject before </head>, if not found, inject at the start
-    if (html.includes('</head>')) {
-      html = html.replace('</head>', `${styles}\n</head>`);
-    } else {
-      html = `<head>${styles}</head>${html}`;
+// Function to sanitize HTML content
+function sanitizeHtmlContent(content) {
+    // Remove any potential script tags that might cause issues
+    content = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    
+    // Ensure proper HTML structure
+    if (!content.includes('<!DOCTYPE html>')) {
+        content = '<!DOCTYPE html>\n' + content;
     }
-  }
-  
-  // Inject JS files
-  const jsFiles = generatedFiles.filter(f => f.path.endsWith('.js'));
-  console.log('Found JS files:', jsFiles.map(f => f.path));
-  if (jsFiles.length > 0) {
-    const scripts = jsFiles.map(f => `<script>\n${f.content}\n</script>`).join('\n');
-    // Try to inject before </body>, if not found, inject at the end
-    if (html.includes('</body>')) {
-      html = html.replace('</body>', `${scripts}\n</body>`);
-    } else {
-      html = `${html}\n${scripts}`;
+    
+    // Ensure proper head and body tags
+    if (!content.includes('<head>')) {
+        content = content.replace('<html>', '<html>\n<head>\n</head>');
     }
-  }
+    if (!content.includes('<body>')) {
+        content = content.replace('</head>', '</head>\n<body>');
+        content = content.replace('</html>', '</body>\n</html>');
+    }
+    
+    return content;
+}
 
-  // Ensure we have a complete HTML document
-  if (!html.includes('<!DOCTYPE html>')) {
-    html = `<!DOCTYPE html>\n<html>\n${html}\n</html>`;
-  }
+// Function to assemble static preview HTML
+function assembleStaticPreviewHtml(files = generatedFiles) {
+    if (!files || files.length === 0) {
+        console.error('No files available for preview');
+        return '';
+    }
 
-  console.log('Assembled HTML length:', html.length);
-  return html;
+    let htmlContent = '';
+    let cssContent = '';
+    let jsContent = '';
+
+    // Find the main HTML file
+    const mainHtmlFile = files.find(file => file.path.toLowerCase().endsWith('index.html'));
+    if (!mainHtmlFile) {
+        console.error('No index.html file found');
+        return '';
+    }
+
+    // Sanitize and prepare HTML content
+    htmlContent = sanitizeHtmlContent(mainHtmlFile.content);
+
+    // Collect all CSS files
+    const cssFiles = files.filter(file => file.path.toLowerCase().endsWith('.css'));
+    cssFiles.forEach(file => {
+        cssContent += `\n<style>\n${file.content}\n</style>`;
+    });
+
+    // Collect all JS files and handle modules
+    const jsFiles = files.filter(file => file.path.toLowerCase().endsWith('.js'));
+    jsFiles.forEach(file => {
+        // Check if the file contains import/export statements
+        const isModule = file.content.includes('import ') || file.content.includes('export ');
+        
+        // For module files, we need to handle imports differently
+        if (isModule) {
+            // Create a module script with proper type and base URL
+            jsContent += `\n<script type="module">
+                // Add base URL for module resolution
+                window.baseUrl = window.location.origin;
+                ${file.content}
+            </script>`;
+        } else {
+            // Regular script for non-module files
+            jsContent += `\n<script>\n${file.content}\n</script>`;
+        }
+    });
+
+    // Insert CSS and JS into HTML
+    if (cssContent) {
+        htmlContent = htmlContent.replace('</head>', `${cssContent}\n</head>`);
+    }
+    if (jsContent) {
+        htmlContent = htmlContent.replace('</body>', `${jsContent}\n</body>`);
+    }
+
+    return htmlContent;
+}
+
+// Function to show preview
+function showPreview() {
+    try {
+        console.log('[Preview] Starting preview display...');
+        const previewContainer = document.getElementById('previewContainer');
+        if (!previewContainer) {
+            throw new Error('Preview container not found');
+        }
+
+        // Clear previous preview
+        previewContainer.innerHTML = '';
+
+        // Create iframe
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.sandbox = 'allow-scripts allow-same-origin allow-modals';
+
+        // Assemble HTML content
+        const htmlContent = assembleStaticPreviewHtml();
+        if (!htmlContent) {
+            throw new Error('Failed to generate preview content');
+        }
+
+        // Create blob URL
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        // Set iframe source
+        iframe.src = blobUrl;
+        iframe.onload = () => {
+            console.log('[Preview] Iframe loaded successfully');
+            URL.revokeObjectURL(blobUrl);
+        };
+
+        // Add iframe to container
+        previewContainer.appendChild(iframe);
+    } catch (error) {
+        console.error('[Preview] Error:', error);
+        alert('Error displaying preview: ' + error.message);
+    }
 }
 
 // Add this new function for checking workspace readiness
@@ -916,12 +995,15 @@ async function showPreview() {
             // Handle workspace preview
             console.log('[Preview] Using workspace preview URL:', currentWorkspacePreviewUrl);
             await checkWorkspaceReady(currentWorkspacePreviewUrl);
-            previewFrame.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads allow-modals';
+            previewFrame.sandbox = 'allow-scripts allow-popups allow-forms allow-downloads allow-modals';
             previewFrame.src = currentWorkspacePreviewUrl;
         } else {
             // Handle static preview
             console.log('[Preview] Using static preview');
-            const html = assembleStaticPreviewHtml();
+            if (!generatedFiles || generatedFiles.length === 0) {
+                throw new Error('No files available for preview');
+            }
+            const html = assembleStaticPreviewHtml(generatedFiles);
             if (!html) {
                 throw new Error('No HTML content available for preview');
             }
@@ -930,8 +1012,8 @@ async function showPreview() {
             const blob = new Blob([html], { type: 'text/html' });
             const blobUrl = URL.createObjectURL(blob);
             
-            // Configure iframe for static preview
-            previewFrame.sandbox = 'allow-scripts allow-same-origin';
+            // Configure iframe for static preview with more restrictive sandbox
+            previewFrame.sandbox = 'allow-scripts allow-modals';
             previewFrame.src = blobUrl;
             
             // Clean up blob URL after iframe loads
@@ -1275,20 +1357,30 @@ if (chatInput) {
 }
 
 window.openPreviewInNewTab = function() {
-    if (currentWorkspacePreviewUrl) {
-        // For workspace previews, open the workspace URL
-        window.open(currentWorkspacePreviewUrl, '_blank');
-    } else {
-        // For static previews, create and open a blob URL
-        const html = assembleStaticPreviewHtml();
-        if (!html) {
-            console.error('No HTML content available for preview');
-            return;
+    try {
+        const htmlContent = assembleStaticPreviewHtml();
+        if (!htmlContent) {
+            throw new Error('Failed to generate preview content');
         }
-        const blob = new Blob([html], { type: 'text/html' });
+
+        // Create blob URL
+        const blob = new Blob([htmlContent], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 10000); // Revoke after 10s
+
+        // Open in new tab
+        const newWindow = window.open(url, '_blank');
+        if (newWindow) {
+            // Revoke the blob URL after the window loads
+            newWindow.onload = () => {
+                URL.revokeObjectURL(url);
+            };
+        } else {
+            URL.revokeObjectURL(url);
+            throw new Error('Failed to open preview in new tab');
+        }
+    } catch (error) {
+        console.error('Error opening preview:', error);
+        alert('Error opening preview: ' + error.message);
     }
 }
 
@@ -1650,3 +1742,159 @@ function handleGenerateResponse(response) {
     
     // ... rest of the existing code ...
 }
+
+// ... existing code ...
+async function generateProject() {
+    try {
+        const prompt = document.getElementById('prompt').value.trim();
+        if (!prompt) {
+          showError('Please enter a project description');
+          return;
+        }
+
+        showLoading();
+        const response = await fetch('http://localhost:4000/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('codexToken')}`
+          },
+          body: JSON.stringify({ prompt })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          if (response.status === 403 && data.redirectToPurchase) {
+            // Show purchase prompt
+            if (confirm(data.message + '\nWould you like to purchase credits now?')) {
+              window.location.href = 'manage.html';
+            }
+          } else {
+            showError(data.error || 'Failed to generate project');
+          }
+          return;
+        }
+
+        // Update credits display after successful generation
+        await updateCreditsDisplay();
+        
+        // Handle the generated project
+        handleGeneratedProject(data);
+    } catch (error) {
+        console.error('Error generating project:', error);
+        showError('Failed to generate project');
+    } finally {
+        hideLoading();
+    }
+}
+// ... existing code ...
+
+// ... existing code ...
+            // Save project to backend
+            async function saveProject(projectData) {
+                try {
+                    console.log('Saving project...');
+                    const token = localStorage.getItem('codexToken');
+                    if (!token) {
+                        throw new Error('No authentication token found');
+                    }
+
+                    // Format files for backend
+                    const formattedFiles = projectData.files.map(file => ({
+                        path: file.path,
+                        content: file.content
+                    }));
+
+                    const response = await fetch('http://localhost:4000/projects', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            name: projectData.name,
+                            technology: projectData.technology,
+                            files: formattedFiles
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to save project');
+                    }
+
+                    const data = await response.json();
+                    console.log('Project saved successfully:', data);
+                    return data;
+                } catch (error) {
+                    console.error('Error saving project:', error);
+                    throw error;
+                }
+            }
+// ... existing code ...
+
+// Function to update credit display in sidebar
+async function updateCreditsDisplay() {
+  try {
+    const token = localStorage.getItem('codexToken');
+    if (!token) {
+      console.log('No token found, skipping credits update');
+      return;
+    }
+
+    const response = await fetch('http://localhost:4000/credits/status', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch credit status');
+    }
+
+    const data = await response.json();
+    const totalRemainingCredits = data.dailyCredits + data.purchasedCredits;
+    
+    // Update sidebar credit display
+    const creditDisplay = document.querySelector('.credits-display');
+    if (creditDisplay) {
+      creditDisplay.innerHTML = `
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-300">Daily Credits:</span>
+            <span class="text-sm font-medium text-blue-400">${data.dailyCredits}/5</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-300">Purchased Credits:</span>
+            <span class="text-sm font-medium text-green-400">${data.purchasedCredits}</span>
+          </div>
+          <div class="border-t border-gray-700 pt-2 mt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold text-gray-200">Total Credits:</span>
+              <span class="text-sm font-bold text-white">${totalRemainingCredits}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Update the credits text and detail
+    const creditsText = document.getElementById('creditsText');
+    const creditsDetail = document.getElementById('creditsDetail');
+    const creditsBar = document.getElementById('creditsBar');
+    
+    if (creditsText) creditsText.textContent = `${totalRemainingCredits}`;
+    if (creditsDetail) creditsDetail.textContent = `Total Credits Available`;
+    if (creditsBar) creditsBar.style.width = `${(data.dailyCredits / 5) * 100}%`;
+  } catch (error) {
+    console.error('Error updating credits display:', error);
+  }
+}
+
+// Update credits display when page loads and after any credit-related action
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('codexToken')) {
+    updateCreditsDisplay();
+  }
+});
